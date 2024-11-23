@@ -85,7 +85,7 @@
 		return `execute if score @s ${$scriptData.name} matches ${incrementer} run tellraw @a [${contentPrefix}, {"text":"${dialog.content}", "italic": true, "color":"gray", "bold": "false"}]\n`;
 	};
 	const getScriptFinalStatement = (incrementer: number) =>
-		`execute if score @s ${$scriptData.name} matches ${incrementer} run scoreboard players set @s ${$scriptData.name} -1\n`;
+		`execute if score @s ${$scriptData.name} matches ${incrementer}.. run scoreboard players set @s ${$scriptData.name} -1\n`;
 
 	const scriptData = writable<ScriptData>({ name: '', initialCounter: 1, initialSpan: 10 });
 
