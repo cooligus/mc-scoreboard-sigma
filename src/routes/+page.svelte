@@ -176,7 +176,7 @@
 
 
 				<div
-					use:dndzone={{ items: $dialogues, flipDurationMs: 50 }}
+					use:dndzone={{ items: $dialogues, flipDurationMs: 50, handle: '.handle' }}
 					on:consider={(e) => (dialogues.set(e.detail.items))}
 					on:finalize={(e) => (dialogues.set(e.detail.items))}
 				>
