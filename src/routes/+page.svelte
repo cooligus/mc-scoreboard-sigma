@@ -173,38 +173,32 @@
 		<h2 class="text-2xl font-semibold mb-4">Dialogues</h2>
 
 
-			<div
-				use:dndzone={{ items: $dialogues, flipDurationMs: 50 }}
-				on:consider={(e) => (dialogues.set(e.detail.items))}
-				on:finalize={(e) => (dialogues.set(e.detail.items))}
-			>
-				{#each $dialogues as dialogue, index (dialogue)}
-					<div class="flex flex-col gap-2 p-4 border rounded-md shadow-sm bg-white mb-2" animate:flip={{ duration: 50 }}>
-						<div class="flex justify-between items-center">
-							<h3 class="text-lg font-medium">Dialogue {index + 1}</h3>
-							<Button variant="destructive" on:click={() => dialogues.update(d => d.filter((_, i) => i !== index))}>
-								Delete
-							</Button>
-						</div>
-						<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-							<div class="flex flex-col">
-								<label for="dialogueCharacter-{index}" class="block text-sm font-medium text-gray-700">Character</label>
-								<Input id="dialogueCharacter-{index}" class="w-full" bind:value={dialogue.character} />
+				{#each $dialogues as dialogue, index}
+					<div class="mb-4 p-4 border rounded-md bg-blue-50">
+						<label for="dialogueContent-{index}" class="block text-sm font-medium text-gray-700">
+							{dialogue.user.name} Dialogue
+						</label>
+						<Textarea id="dialogueContent-{index}" bind:value={dialogue.content} class="min-h-[3em] mb-2" />
+						<div class="flex flex-row gap-4">
+							<div class="flex-1">
+								<label for="dialogueSpanMultiplier-{index}" class="block text-sm font-medium text-gray-700">Span Multiplier (x20)</label>
+								<Input id="dialogueSpanMultiplier-{index}" type="number" class="w-full" value={dialogue.span / 20} on:input={(e) => dialogue.span = Number(e.target.value) * 20} />
 							</div>
-							<div class="flex flex-col">
-								<label for="dialogueLine-{index}" class="block text-sm font-medium text-gray-700">Line</label>
-								<Input id="dialogueLine-{index}" class="w-full" bind:value={dialogue.line} />
-							</div>
-							<div class="flex flex-col">
+							<div class="flex-1">
 								<label for="dialogueSpan-{index}" class="block text-sm font-medium text-gray-700">Raw Span</label>
 								<Input id="dialogueSpan-{index}" type="number" class="w-full" bind:value={dialogue.span} />
 							</div>
 						</div>
 					</div>
 				{/each}
-			</div>
 
-			<Button on:click={() => addDialogue('Wieseik')} class="w-full mt-4">Add New Dialogue</Button>
+				<div class="flex flex-wrap gap-2 mt-4">
+					{#each $users as user}
+						<Button on:click={() => addDialogue(user.name)}>+ {user.name}</Button>
+					{/each}
+				</div>
+
+
 
 
 
