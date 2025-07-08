@@ -174,13 +174,13 @@
 	<section class="mb-8 p-6 border rounded-lg shadow-md">
 		<h2 class="text-2xl font-semibold mb-4">Dialogues</h2>
 				<div
-					use:dndzone={{ items: $dialogues, flipDurationMs: 50, handle: '.handle' }}
+					use:dndzone={{ items: $dialogues, flipDurationMs: 50 }}
 
-						on:consider={(e) => { console.log('consider', e.detail.items); dialogues.set(e.detail.items); }}
-						on:finalize={(e) => { console.log('finalize', e.detail.items); dialogues.set(e.detail.items); }}
+						on:consider={(e) => { dialogues.set(e.detail.items); }}
+						on:finalize={(e) => { dialogues.set(e.detail.items); }}
 					>
 					{#each $dialogues as dialogue, index (dialogue.id)}
-						<div class="mb-4 p-4 border rounded-md flex items-center" animate:flip={{ duration: 50 }}>
+						<div class="mb-4 p-4 border rounded-md flex items-center">
 							<span class="handle mr-4 cursor-grab">&#9776;</span>
 							<div class="flex-1">
 								<label for="dialogueContent-{index}" class="block text-sm font-medium ">
