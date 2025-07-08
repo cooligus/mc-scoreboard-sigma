@@ -42,6 +42,7 @@
 		"@tailwindcss/forms": "^0.5.9",
 		"@tailwindcss/typography": "^0.5.15",
 		"path": "^0.12.7",
-		"svelte-dnd-action": "^0.9.63"
+		"svelte-dnd-action": "^0.9.63",
+		"uuid": "^11.1.0"
 	}
 }
