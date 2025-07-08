@@ -173,7 +173,6 @@
 		<h2 class="text-2xl font-semibold mb-4">Dialogues</h2>
 
 
-
 			<div
 				use:dndzone={{ items: $dialogues, flipDurationMs: 50 }}
 				on:consider={(e) => (dialogues.set(e.detail.items))}
@@ -204,6 +203,9 @@
 					</div>
 				{/each}
 			</div>
+
+
+
 
 </section>
 
