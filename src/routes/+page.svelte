@@ -177,8 +177,10 @@
 
 				<div
 					use:dndzone={{ items: $dialogues, flipDurationMs: 50, handle: '.handle' }}
-					on:consider={(e) => (dialogues.set(e.detail.items))}
-					on:finalize={(e) => (dialogues.set(e.detail.items))}
+
+						on:consider={(e) => { console.log('consider', e.detail.items); dialogues.set(e.detail.items); }}
+						on:finalize={(e) => { console.log('finalize', e.detail.items); dialogues.set(e.detail.items); }}
+
 				>
 					{#each $dialogues as dialogue, index (dialogue)}
 						<div class="mb-4 p-4 border rounded-md bg-blue-50 flex items-center" animate:flip={{ duration: 50 }}>
