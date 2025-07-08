@@ -204,6 +204,18 @@
 				{/each}
 			</div>
 
+			<Button on:click={() => addDialogue('Wieseik')} class="w-full mt-4">Add New Dialogue</Button>
+
+
+
+
+
+		<section class="mb-8 p-6 border rounded-lg shadow-md">
+			<h2 class="text-2xl font-semibold mb-4">Generated Script</h2>
+			<Textarea bind:value={$finalScript} class="min-h-[10em] mb-4" readonly />
+			<Button on:click={generateDialogues} class="w-full">Generate Script</Button>
+		</section>
+
 
 
 
