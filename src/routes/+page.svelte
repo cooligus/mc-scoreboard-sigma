@@ -5,6 +5,9 @@
 	import { Collapsible } from 'bits-ui';
 	import { writable } from 'svelte/store';
 
+	import { dndzone } from 'svelte-dnd-action';
+
+
 
 	interface Character {
 		name: string;
@@ -205,5 +208,9 @@
 </section>
 
 
+
+
+
 </div>
+
 
