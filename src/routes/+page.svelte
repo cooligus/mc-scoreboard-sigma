@@ -129,6 +129,44 @@
 		const wholeScriptContent = initialScriptContent + realScriptContent + endingScriptContent;
 		finalScript.set(wholeScriptContent);
 	};
+
+	const previewVisible = writable<boolean>(false);
+	const currentPreviewCommand = writable<string>('');
+	const previewIndex = writable<number>(-1);
+
+	const runPreview = () => {
+		if ($commands.length === 0) return;
+		
+		previewVisible.set(true);
+		previewIndex.set(-1);
+		currentPreviewCommand.set('');
+		
+		let currentSpan = $scriptData.initialSpan;
+		
+		const showNextCommand = (index: number) => {
+			if (index >= $commands.length) {
+				setTimeout(() => {
+					previewVisible.set(false);
+					previewIndex.set(-1);
+					currentPreviewCommand.set('');
+				}, currentSpan);
+				return;
+			}
+			
+			const command = $commands[index];
+			previewIndex.set(index);
+			
+			currentPreviewCommand.set(command.content);
+			
+			setTimeout(() => {
+				showNextCommand(index + 1);
+			}, command.span * 50);
+		};
+		
+		setTimeout(() => {
+			showNextCommand(0);
+		}, currentSpan);
+	};
 </script>
 
 <div class="container mx-auto p-4">
@@ -260,6 +298,29 @@
 	<section class="mb-8 rounded-lg border p-6 shadow-md">
 		<h2 class="mb-4 text-2xl font-semibold">Generated Script</h2>
 		<Textarea bind:value={$finalScript} class="mb-4 min-h-[10em]" readonly />
-		<Button onclick={generateCommands} class="w-full">Generate Script</Button>
+		<div class="flex gap-2">
+			<Button onclick={generateCommands} class="flex-1">Generate Script</Button>
+			<Button onclick={runPreview} class="flex-1">Run Preview</Button>
+		</div>
 	</section>
+
+	{#if $previewVisible}
+		<div class="fixed bottom-4 right-4 z-50 max-w-md rounded-lg border bg-black p-4 shadow-lg">
+			<div class="mb-2 flex items-center justify-between">
+				<h3 class="text-lg font-semibold">Preview</h3>
+				<button 
+					class="text-white-700 hover:text-gray-700" 
+					on:click={() => previewVisible.set(false)}
+				>
+					✕
+				</button>
+			</div>
+			<div class="mb-2 text-sm text-white-600">
+				Command {$previewIndex + 1} of {$commands.length}
+			</div>
+			<div class="rounded border bg-black-50 p-3 font-mono text-sm">
+				{$currentPreviewCommand || 'Waiting...'}
+			</div>
+		</div>
+	{/if}
 </div>
