@@ -4,6 +4,8 @@
 	import Textarea from '$lib/components/ui/textarea/textarea.svelte';
 	import { Collapsible } from 'bits-ui';
 	import { writable } from 'svelte/store';
+	import { dndzone } from 'svelte-dnd-action';
+	import { v4 as uuidv4 } from 'uuid';
 
 	interface Character {
 		name: string;
@@ -12,6 +14,7 @@
 	}
 
 	interface Dialog {
+		id: string;
 		user: Character;
 		span: number;
 		content: string;
@@ -61,7 +64,7 @@
 					(user) => user.scriptPrefix.toLocaleLowerCase() === caseInsesitiveSpeaker
 				);
 				if (user) {
-					dialogues.push({ user, span, content });
+					dialogues.push({ id: uuidv4(), user, span, content });
 				} else {
 					console.error(`Unknown speaker: ${caseInsesitiveSpeaker}`);
 				}
@@ -95,7 +98,10 @@
 			console.error(`User ${userName} not found`);
 			return;
 		}
-		dialogues.update((dialogues) => [...dialogues, { user, span: 0, content: '' }]);
+		dialogues.update((dialogues) => [
+			...dialogues,
+			{ id: uuidv4(), user, span: 0, content: '' }
+		]);
 	};
 
 	const generateDialogues = () => {
@@ -112,40 +118,100 @@
 	};
 </script>
 
-<Textarea bind:value={$rawScript} class="min-h-[3em]" />
-<Button on:click={parseDialogueOnClick}>Import dialogues</Button>
+<div class="container mx-auto p-4">
+	<h1 class="text-3xl font-bold mb-6">Dialogue Generator</h1>
 
-<Input bind:value={$scriptData.name} />
+	<section class="mb-8 p-6 border rounded-lg shadow-md">
+		<h2 class="text-2xl font-semibold mb-4">Import Plain Text Dialogues</h2>
+		<Textarea bind:value={$rawScript} class="min-h-[10em] mb-4" placeholder="Paste your raw script here..." />
+		<Button on:click={parseDialogueOnClick} class="w-full">Import Dialogues</Button>
+	</section>
 
-<Collapsible.Root open={true}>
-	<Collapsible.Trigger>Users</Collapsible.Trigger>
-	<Collapsible.Content>
-		{#each $users as user}
-			<div class="flex flex-row">
-				<Input bind:value={user.name} />
-				<Input bind:value={user.scriptPrefix} />
-				<Input bind:value={user.contentPrefix} />
-			</div>
-		{/each}
-		<Button
-			on:click={() =>
-				users.update((users) => [...users, { name: '', scriptPrefix: '', contentPrefix: '' }])}
-			>New user</Button
-		>
-	</Collapsible.Content>
-</Collapsible.Root>
+	<section class="mb-8 p-6 border rounded-lg shadow-md">
+		<h2 class="text-2xl font-semibold mb-4">Script Settings</h2>
+		<div class="mb-4">
+			<label for="scriptName" class="block text-sm font-medium ">Script Name</label>
+			<Input id="scriptName" bind:value={$scriptData.name} placeholder="e.g., my_dialogue_script" />
+		</div>
+		<div class="mb-4">
+			<label for="initialCounter" class="block text-sm font-medium ">Initial Counter</label>
+			<Input id="initialCounter" type="number" bind:value={$scriptData.initialCounter} />
+		</div>
+		<div class="mb-4">
+			<label for="initialSpan" class="block text-sm font-medium ">Initial Span</label>
+			<Input id="initialSpan" type="number" bind:value={$scriptData.initialSpan} />
+		</div>
+	</section>
 
-{#each $dialogues as dialogue}
-	<Input bind:value={dialogue.content} />
-	<div class="flex flex-row">
-		{dialogue.user.name}
-		<Input type="number" class="w-[7em]" value={dialogue.span / 20} />
-		<Input type="number" class="w-[7em]" bind:value={dialogue.span} />
-	</div>
-{/each}
+	<Collapsible.Root open={true} class="mb-8 p-6 border rounded-lg shadow-md">
+		<Collapsible.Trigger class="text-2xl font-semibold mb-4 w-full text-left">Users</Collapsible.Trigger>
+		<Collapsible.Content>
+			{#each $users as user, index}
+				<div class="flex flex-col md:flex-row gap-4 mb-4 p-4 border rounded-md">
+					<div class="flex-1">
+						<label for="userName-{index}" class="block text-sm font-medium ">Name</label>
+						<Input id="userName-{index}" bind:value={user.name} placeholder="Character Name" />
+					</div>
+					<div class="flex-1">
+						<label for="scriptPrefix-{index}" class="block text-sm font-medium ">Script Prefix</label>
+						<Input id="scriptPrefix-{index}" bind:value={user.scriptPrefix} placeholder="e.g., W" />
+					</div>
+					<div class="flex-1">
+						<label for="contentPrefix-{index}" class="block text-sm font-medium ">Content Prefix</label>
+						<Input id="contentPrefix-{index}" bind:value={user.contentPrefix} placeholder="e.g., Wiesiek: " />
+					</div>
+				</div>
+			{/each}
+			<Button
+				on:click={() =>
+					users.update((users) => [...users, { name: '', scriptPrefix: '', contentPrefix: '' }])}
+				class="w-full"
+				>Add New User</Button
+			>
+		</Collapsible.Content>
+	</Collapsible.Root>
 
-{#each $users as user}
-	<Button on:click={() => addDialogue(user.name)}>+ {user.name}</Button>
-{/each}
-<Button on:click={generateDialogues}>Generate dialogues</Button>
-<Textarea value={$finalScript} class="min-h-[30em]" />
+	<section class="mb-8 p-6 border rounded-lg shadow-md">
+		<h2 class="text-2xl font-semibold mb-4">Dialogues</h2>
+				<div
+					use:dndzone={{ items: $dialogues, flipDurationMs: 50 }}
+
+						on:consider={(e) => { dialogues.set(e.detail.items); }}
+						on:finalize={(e) => { dialogues.set(e.detail.items); }}
+					>
+					{#each $dialogues as dialogue, index (dialogue.id)}
+						<div class="mb-4 p-4 border rounded-md flex items-center">
+							<span class="handle mr-4 cursor-grab">&#9776;</span>
+							<div class="flex-1">
+								<label for="dialogueContent-{index}" class="block text-sm font-medium ">
+									{dialogue.user.name} Dialogue
+								</label>
+								<Textarea id="dialogueContent-{index}" bind:value={dialogue.content} class="min-h-[3em] mb-2" />
+								<div class="flex flex-row gap-4">
+									<div class="flex-1">
+										<label for="dialogueSpanMultiplier-{index}" class="block text-sm font-medium ">Span Multiplier (x20)</label>
+										<Input id="dialogueSpanMultiplier-{index}" type="number" class="w-full" value={dialogue.span / 20} on:input={(e) => dialogue.span = Number(e.target.value) * 20} />
+									</div>
+									<div class="flex-1">
+										<label for="dialogueSpan-{index}" class="block text-sm font-medium ">Raw Span</label>
+										<Input id="dialogueSpan-{index}" type="number" class="w-full" bind:value={dialogue.span} />
+									</div>
+								</div>
+							</div>
+						</div>
+					{/each}
+				</div>
+
+				<div class="flex flex-wrap gap-2 mt-4">
+					{#each $users as user}
+						<Button on:click={() => addDialogue(user.name)}>+ {user.name}</Button>
+					{/each}
+				</div>
+		</section>
+
+		<section class="mb-8 p-6 border rounded-lg shadow-md">
+			<h2 class="text-2xl font-semibold mb-4">Generated Script</h2>
+			<Textarea bind:value={$finalScript} class="min-h-[10em] mb-4" readonly />
+			<Button on:click={generateDialogues} class="w-full">Generate Script</Button>
+		</section>
+</div>
