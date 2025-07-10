@@ -7,15 +7,15 @@
 	import { dndzone } from 'svelte-dnd-action';
 	import { v4 as uuidv4 } from 'uuid';
 
-	interface Character {
+	interface Function {
 		name: string;
 		scriptPrefix: string;
-		contentPrefix: string;
+		format: string;
 	}
 
-	interface Dialog {
+	interface Command {
 		id: string;
-		user: Character;
+		user?: Function;
 		span: number;
 		content: string;
 	}
@@ -26,11 +26,9 @@
 		initialSpan: number;
 	}
 
-	const users = writable<Character[]>([
-		{ name: 'Wieseik', scriptPrefix: 'W', contentPrefix: 'Wiesiek: ' }
-	]);
+	const users = writable<Function[]>([{ name: 'Wiesiek', scriptPrefix: 'W', format: 'function characters:wiesiek {Line: "%s"}' }]);
 
-	const dialogues = writable<Dialog[]>([]);
+	const commands = writable<Command[]>([]);
 	const finalScript = writable<string>('');
 	const rawScript = writable<string>('');
 
@@ -42,16 +40,16 @@
 		return occurences ? occurences.length * characterMultiplier : 0;
 	};
 
-	const parseDialogueOnClick = () => {
-		const parsedDialogues = parseDialogue($rawScript);
-		dialogues.set(parsedDialogues);
+	const parseCommandsOnClick = () => {
+		const parsedCommands = parseCommands($rawScript);
+		commands.set(parsedCommands);
 	};
 
-	const parseDialogue = (dialogueString: string) => {
-		const dialogueLines = dialogueString.split('\n');
-		const dialogues: Dialog[] = [];
+	const parseCommands = (commandString: string) => {
+		const commandLines = commandString.split('\n');
+		const commands: Command[] = [];
 
-		for (const line of dialogueLines) {
+		for (const line of commandLines) {
 			const match = line.match(/^([A-Za-z]+): (.*)$/);
 			if (match) {
 				const speaker = match[1];
@@ -64,53 +62,54 @@
 					(user) => user.scriptPrefix.toLocaleLowerCase() === caseInsesitiveSpeaker
 				);
 				if (user) {
-					dialogues.push({ id: uuidv4(), user, span, content });
+					commands.push({ id: uuidv4(), user, span, content });
 				} else {
 					console.error(`Unknown speaker: ${caseInsesitiveSpeaker}`);
 				}
 			} else {
-				if (dialogues.length > 0) {
-					dialogues[dialogues.length - 1].content += '\n' + line;
+				if (commands.length > 0) {
+					commands[commands.length - 1].content += '\n' + line;
 				} else {
-					console.error(`Invalid dialogue line: ${line}`);
+					console.error(`Invalid command line: ${line}`);
 				}
 			}
 		}
 
-		return dialogues;
+		return commands;
 	};
 
 	const getUserFromUsername = (username: string) => $users.find((user) => user.name === username);
 	const getScriptIncrementer = () =>
 		`scoreboard players add @s ${$scriptData.name} ${$scriptData.initialCounter}\n`;
-	const getSingleDialog = (incrementer: number, dialog: Dialog) => {
-		const contentPrefix = dialog.user.contentPrefix;
-		return `execute if score @s ${$scriptData.name} matches ${incrementer} run tellraw @a [${contentPrefix}, {"text":"${dialog.content}", "italic": true, "color":"gray", "bold": "false"}]\n`;
+	const getSingleCommand = (incrementer: number, command: Command) => {
+		let renderedCommand = command.content;
+		if(command.user) {
+			const format = command.user.format;
+			renderedCommand = format.replace('%s', command.content);
+		}
+		return `execute if score @s ${$scriptData.name} matches ${incrementer} run ${renderedCommand}\n`;
 	};
 	const getScriptFinalStatement = (incrementer: number) =>
 		`execute if score @s ${$scriptData.name} matches ${incrementer}.. run scoreboard players set @s ${$scriptData.name} -1\n`;
 
 	const scriptData = writable<ScriptData>({ name: '', initialCounter: 1, initialSpan: 10 });
 
-	const addDialogue = (userName: string) => {
+	const addCommand = (userName: string) => {
 		const user = getUserFromUsername(userName);
 		if (!user) {
 			console.error(`User ${userName} not found`);
 			return;
 		}
-		dialogues.update((dialogues) => [
-			...dialogues,
-			{ id: uuidv4(), user, span: 0, content: '' }
-		]);
+		commands.update((commands) => [...commands, { id: uuidv4(), user, span: 0, content: '' }]);
 	};
 
-	const generateDialogues = () => {
+	const generateCommands = () => {
 		const initialScriptContent = getScriptIncrementer();
 		let realScriptContent = '';
 		let conversationSpan = $scriptData.initialSpan;
-		for (let i = 0; i < $dialogues.length; i++) {
-			realScriptContent += getSingleDialog(conversationSpan, $dialogues[i]);
-			conversationSpan += $dialogues[i].span;
+		for (let i = 0; i < $commands.length; i++) {
+			realScriptContent += getSingleCommand(conversationSpan, $commands[i]);
+			conversationSpan += $commands[i].span;
 		}
 		const endingScriptContent = getScriptFinalStatement(conversationSpan);
 		const wholeScriptContent = initialScriptContent + realScriptContent + endingScriptContent;
@@ -119,99 +118,125 @@
 </script>
 
 <div class="container mx-auto p-4">
-	<h1 class="text-3xl font-bold mb-6">Dialogue Generator</h1>
+	<h1 class="mb-6 text-3xl font-bold">Command Generator</h1>
 
-	<section class="mb-8 p-6 border rounded-lg shadow-md">
-		<h2 class="text-2xl font-semibold mb-4">Import Plain Text Dialogues</h2>
-		<Textarea bind:value={$rawScript} class="min-h-[10em] mb-4" placeholder="Paste your raw script here..." />
-		<Button on:click={parseDialogueOnClick} class="w-full">Import Dialogues</Button>
+	<section class="mb-8 rounded-lg border p-6 shadow-md">
+		<h2 class="mb-4 text-2xl font-semibold">Import dialogues script</h2>
+		<Textarea
+			bind:value={$rawScript}
+			class="mb-4 min-h-[10em]"
+			placeholder="Paste your raw script here..."
+		/>
+		<Button on:click={parseCommandsOnClick} class="w-full">Import Commands</Button>
 	</section>
 
-	<section class="mb-8 p-6 border rounded-lg shadow-md">
-		<h2 class="text-2xl font-semibold mb-4">Script Settings</h2>
+	<section class="mb-8 rounded-lg border p-6 shadow-md">
+		<h2 class="mb-4 text-2xl font-semibold">Script Settings</h2>
 		<div class="mb-4">
-			<label for="scriptName" class="block text-sm font-medium ">Script Name</label>
-			<Input id="scriptName" bind:value={$scriptData.name} placeholder="e.g., my_dialogue_script" />
+			<label for="scriptName" class="block text-sm font-medium">Script Name</label>
+			<Input id="scriptName" bind:value={$scriptData.name} placeholder="e.g., my_command_script" />
 		</div>
 		<div class="mb-4">
-			<label for="initialCounter" class="block text-sm font-medium ">Initial Counter</label>
+			<label for="initialCounter" class="block text-sm font-medium">Initial Counter</label>
 			<Input id="initialCounter" type="number" bind:value={$scriptData.initialCounter} />
 		</div>
 		<div class="mb-4">
-			<label for="initialSpan" class="block text-sm font-medium ">Initial Span</label>
+			<label for="initialSpan" class="block text-sm font-medium">Initial Span</label>
 			<Input id="initialSpan" type="number" bind:value={$scriptData.initialSpan} />
 		</div>
 	</section>
 
-	<Collapsible.Root open={true} class="mb-8 p-6 border rounded-lg shadow-md">
-		<Collapsible.Trigger class="text-2xl font-semibold mb-4 w-full text-left">Users</Collapsible.Trigger>
+	<Collapsible.Root open={true} class="mb-8 rounded-lg border p-6 shadow-md">
+		<Collapsible.Trigger class="mb-4 w-full text-left text-2xl font-semibold"
+			>Users</Collapsible.Trigger
+		>
 		<Collapsible.Content>
 			{#each $users as user, index}
-				<div class="flex flex-col md:flex-row gap-4 mb-4 p-4 border rounded-md">
+				<div class="mb-4 flex flex-col gap-4 rounded-md border p-4 md:flex-row">
 					<div class="flex-1">
-						<label for="userName-{index}" class="block text-sm font-medium ">Name</label>
-						<Input id="userName-{index}" bind:value={user.name} placeholder="Character Name" />
+						<label for="userName-{index}" class="block text-sm font-medium">Name</label>
+						<Input id="userName-{index}" bind:value={user.name} placeholder="Function Name" />
 					</div>
 					<div class="flex-1">
-						<label for="scriptPrefix-{index}" class="block text-sm font-medium ">Script Prefix</label>
+						<label for="scriptPrefix-{index}" class="block text-sm font-medium">Script Prefix</label
+						>
 						<Input id="scriptPrefix-{index}" bind:value={user.scriptPrefix} placeholder="e.g., W" />
 					</div>
 					<div class="flex-1">
-						<label for="contentPrefix-{index}" class="block text-sm font-medium ">Content Prefix</label>
-						<Input id="contentPrefix-{index}" bind:value={user.contentPrefix} placeholder="e.g., Wiesiek: " />
+						<label for="format-{index}" class="block text-sm font-medium">Format</label>
+						<Input id="format-{index}" bind:value={user.format} placeholder="e.g., Wiesiek: " />
 					</div>
 				</div>
 			{/each}
 			<Button
 				on:click={() =>
-					users.update((users) => [...users, { name: '', scriptPrefix: '', contentPrefix: '' }])}
-				class="w-full"
-				>Add New User</Button
+					users.update((users) => [...users, { name: '', scriptPrefix: '', format: '' }])}
+				class="w-full">Add New User</Button
 			>
 		</Collapsible.Content>
 	</Collapsible.Root>
 
-	<section class="mb-8 p-6 border rounded-lg shadow-md">
-		<h2 class="text-2xl font-semibold mb-4">Dialogues</h2>
-				<div
-					use:dndzone={{ items: $dialogues, flipDurationMs: 50 }}
-
-						on:consider={(e) => { dialogues.set(e.detail.items); }}
-						on:finalize={(e) => { dialogues.set(e.detail.items); }}
-					>
-					{#each $dialogues as dialogue, index (dialogue.id)}
-						<div class="mb-4 p-4 border rounded-md flex items-center">
-							<span class="handle mr-4 cursor-grab">&#9776;</span>
+	<section class="mb-8 rounded-lg border p-6 shadow-md">
+		<h2 class="mb-4 text-2xl font-semibold">Commands</h2>
+		<div
+			use:dndzone={{ items: $commands, flipDurationMs: 50 }}
+			on:consider={(e) => {
+				commands.set(e.detail.items);
+			}}
+			on:finalize={(e) => {
+				commands.set(e.detail.items);
+			}}
+		>
+			{#each $commands as command, index (command.id)}
+				<div class="mb-4 flex items-center rounded-md border p-4">
+					<span class="handle mr-4 cursor-grab">&#9776;</span>
+					<div class="flex-1">
+						<label for="commandContent-{index}" class="block text-sm font-medium">
+							{command.user.name} Command
+						</label>
+						<Textarea
+							id="commandContent-{index}"
+							bind:value={command.content}
+							class="mb-2 min-h-[3em]"
+						/>
+						<div class="flex flex-row gap-4">
 							<div class="flex-1">
-								<label for="dialogueContent-{index}" class="block text-sm font-medium ">
-									{dialogue.user.name} Dialogue
-								</label>
-								<Textarea id="dialogueContent-{index}" bind:value={dialogue.content} class="min-h-[3em] mb-2" />
-								<div class="flex flex-row gap-4">
-									<div class="flex-1">
-										<label for="dialogueSpanMultiplier-{index}" class="block text-sm font-medium ">Span Multiplier (x20)</label>
-										<Input id="dialogueSpanMultiplier-{index}" type="number" class="w-full" value={dialogue.span / 20} on:input={(e) => dialogue.span = Number(e.target.value) * 20} />
-									</div>
-									<div class="flex-1">
-										<label for="dialogueSpan-{index}" class="block text-sm font-medium ">Raw Span</label>
-										<Input id="dialogueSpan-{index}" type="number" class="w-full" bind:value={dialogue.span} />
-									</div>
-								</div>
+								<label for="commandSpanMultiplier-{index}" class="block text-sm font-medium"
+									>Span Multiplier (x20)</label
+								>
+								<Input
+									id="commandSpanMultiplier-{index}"
+									type="number"
+									class="w-full"
+									value={command.span / 20}
+									on:input={(e) => (command.span = Number(e.target.value) * 20)}
+								/>
+							</div>
+							<div class="flex-1">
+								<label for="commandSpan-{index}" class="block text-sm font-medium">Raw Span</label>
+								<Input
+									id="commandSpan-{index}"
+									type="number"
+									class="w-full"
+									bind:value={command.span}
+								/>
 							</div>
 						</div>
-					{/each}
+					</div>
 				</div>
+			{/each}
+		</div>
 
-				<div class="flex flex-wrap gap-2 mt-4">
-					{#each $users as user}
-						<Button on:click={() => addDialogue(user.name)}>+ {user.name}</Button>
-					{/each}
-				</div>
-		</section>
+		<div class="mt-4 flex flex-wrap gap-2">
+			{#each $users as user}
+				<Button on:click={() => addCommand(user.name)}>+ {user.name}</Button>
+			{/each}
+		</div>
+	</section>
 
-		<section class="mb-8 p-6 border rounded-lg shadow-md">
-			<h2 class="text-2xl font-semibold mb-4">Generated Script</h2>
-			<Textarea bind:value={$finalScript} class="min-h-[10em] mb-4" readonly />
-			<Button on:click={generateDialogues} class="w-full">Generate Script</Button>
-		</section>
+	<section class="mb-8 rounded-lg border p-6 shadow-md">
+		<h2 class="mb-4 text-2xl font-semibold">Generated Script</h2>
+		<Textarea bind:value={$finalScript} class="mb-4 min-h-[10em]" readonly />
+		<Button on:click={generateCommands} class="w-full">Generate Script</Button>
+	</section>
 </div>
