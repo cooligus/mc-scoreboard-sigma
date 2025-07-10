@@ -15,6 +15,8 @@
 	} from '$lib/parsers';
 	import { runPreview as runPreviewUtil } from '$lib/preview';
 	import type { Command, UserFunction } from '$lib/interfaces';
+	import Fa from 'svelte-fa'
+	import { faGripLines, faTrash } from '@fortawesome/free-solid-svg-icons'
 
 	interface ScriptData {
 		name: string;
@@ -72,6 +74,33 @@
 			return;
 		}
 		commands.update((commands) => [...commands, { id: uuid(), user, span: 0, content: '' }]);
+	};
+
+	const removeCommand = (commandId: string) => {
+		commands.update((commands) => commands.filter((cmd) => cmd.id !== commandId));
+	};
+
+	const changeCommandUser = (commandId: string, userName: string) => {
+		const user = getUserFromUsername(userName, $users);
+		if (!user) {
+			console.error(`User ${userName} not found`);
+			return;
+		}
+		commands.update((commands) =>
+			commands.map((cmd) => (cmd.id === commandId ? { ...cmd, user } : cmd))
+		);
+	};
+
+	const increaseAllSpans = (amount: number = 20) => {
+		commands.update((commands) =>
+			commands.map((cmd) => ({ ...cmd, span: cmd.span + amount }))
+		);
+	};
+
+	const decreaseAllSpans = (amount: number = 20) => {
+		commands.update((commands) =>
+			commands.map((cmd) => ({ ...cmd, span: Math.max(0, cmd.span - amount) }))
+		);
 	};
 
 	const generateCommands = () => {
@@ -163,6 +192,10 @@
 
 	<section class="mb-8 rounded-lg border p-6 shadow-md">
 		<h2 class="mb-4 text-2xl font-semibold">Commands</h2>
+		<div class="mb-4 flex gap-2">
+			<Button onclick={() => increaseAllSpans(5)} class="flex-1">+5 All Spans</Button>
+			<Button onclick={() => decreaseAllSpans(5)} class="flex-1">-5 All Spans</Button>
+		</div>
 		<div
 			use:dndzone={{ items: $commands, flipDurationMs: 50 }}
 			on:consider={(e) => {
@@ -174,39 +207,57 @@
 		>
 			{#each $commands as command, index (command.id)}
 				<div class="mb-4 flex items-center rounded-md border p-4">
-					<span class="handle mr-4 cursor-grab">&#9776;</span>
+					<span class="handle mr-4 cursor-grab">
+						<Fa icon={faGripLines} />
+					</span>
 					<div class="flex-1">
-						<label for="commandContent-{index}" class="block text-sm font-medium">
-							{command.user ? command.user.name : 'Unknown'} Command
-						</label>
+						<div class="mb-2 flex gap-3 items-center justify-between">
+							<select
+								id="commandUser-{index}"
+								class="w-full h-full rounded border px-3 py-1 text-sm bg-black text-white"
+								value={command.user?.name || ''}
+								on:change={(e) => {
+									const target = e.target as HTMLSelectElement | null;
+									if (target) changeCommandUser(command.id, target.value);
+								}}
+							>
+								<option value="">No user</option>
+								{#each $users as user}
+									<option value={user.name}>{user.name}</option>
+								{/each}
+							</select>
+							<label for="commandSpanMultiplier-{index}" class="block text-xs">seconds:</label>
+							<Input
+								id="commandSpanMultiplier-{index}"
+								type="number"
+								class="w-20"
+								value={command.span / 20}
+								on:input={(e) => {
+									const target = e.target as HTMLInputElement | null;
+									if (target) command.span = Number(target.value) * 20;
+								}}
+							/>
+							<label for="commandSpan-{index}" class="block text-xs">ticks:</label>
+							<Input
+								id="commandSpan-{index}"
+								type="number"
+								class="w-20"
+								bind:value={command.span}
+							/>
+							<button
+								class="text-red-500 hover:text-red-700 w-6 h-6 flex items-center justify-center"
+								on:click={() => removeCommand(command.id)}
+								title="Remove command"
+								aria-label="Remove command"
+							>
+								<Fa icon={faTrash} />
+							</button>
+						</div>
 						<Textarea
 							id="commandContent-{index}"
 							bind:value={command.content}
 							class="mb-2 min-h-[3em]"
 						/>
-						<div class="flex flex-row gap-4">
-							<div class="flex-1">
-								<label for="commandSpanMultiplier-{index}" class="block text-sm font-medium"
-									>Span Multiplier (x20)</label
-								>
-								<Input
-									id="commandSpanMultiplier-{index}"
-									type="number"
-									class="w-full"
-									value={command.span / 20}
-									on:input={(e) => (command.span = Number(e.currentTarget.value) * 20)}
-								/>
-							</div>
-							<div class="flex-1">
-								<label for="commandSpan-{index}" class="block text-sm font-medium">Raw Span</label>
-								<Input
-									id="commandSpan-{index}"
-									type="number"
-									class="w-full"
-									bind:value={command.span}
-								/>
-							</div>
-						</div>
 					</div>
 				</div>
 			{/each}
