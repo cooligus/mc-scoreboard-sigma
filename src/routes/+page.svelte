@@ -5,20 +5,9 @@
 	import { Collapsible } from 'bits-ui';
 	import { writable } from 'svelte/store';
 	import { dndzone } from 'svelte-dnd-action';
-	import { v4 as uuidv4 } from 'uuid';
-
-	interface Function {
-		name: string;
-		scriptPrefix: string;
-		format: string;
-	}
-
-	interface Command {
-		id: string;
-		user?: Function;
-		span: number;
-		content: string;
-	}
+	import { v4 as uuid } from 'uuid';
+	import { escapeRegexSpecialChars, parseMcfunctionScript } from '$lib/utils';
+	import type { Command, UserFunction } from '$lib/command.interface';
 
 	interface ScriptData {
 		name: string;
@@ -26,11 +15,12 @@
 		initialSpan: number;
 	}
 
-	const users = writable<Function[]>([{ name: 'Wiesiek', scriptPrefix: 'W', format: 'function characters:wiesiek {Line: "%s"}' }]);
+	const users = writable<UserFunction[]>([{ name: 'Wiesiek', scriptPrefix: 'W', format: 'function characters:wiesiek {Line: "%s"}' }]);
 
 	const commands = writable<Command[]>([]);
 	const finalScript = writable<string>('');
 	const rawScript = writable<string>('');
+	const rawMcfunction = writable<string>('');
 
 	// get number of alphanumerical characters and multiply by 2
 	const getSpanFromLine = (line: string) => {
@@ -62,7 +52,7 @@
 					(user) => user.scriptPrefix.toLocaleLowerCase() === caseInsesitiveSpeaker
 				);
 				if (user) {
-					commands.push({ id: uuidv4(), user, span, content });
+					commands.push({ id: uuid(), user, span, content });
 				} else {
 					console.error(`Unknown speaker: ${caseInsesitiveSpeaker}`);
 				}
@@ -78,7 +68,31 @@
 		return commands;
 	};
 
-	const getUserFromUsername = (username: string) => $users.find((user) => user.name === username);
+	const parseMcfunctionScriptOnClick = () => {
+		const {scriptName, initialCounter, commands: parsedCommands, initialSpan} = parseMcfunctionScript($rawMcfunction);
+
+		const updatedCommands = parsedCommands.map((command) => {
+			let matchedUser: UserFunction | undefined = undefined;
+			let matchedContent = command.content;
+			for (const user of $users as UserFunction[]) {
+				const formatRegex = escapeRegexSpecialChars(user.format).replace(/%s/, "(.+)");
+				const match = matchedContent.match(new RegExp(`^${formatRegex}$`));
+				if (match) {
+					matchedUser = user;
+					matchedContent = match[1];
+					break;
+				}
+			}
+			return { ...command, user: matchedUser, content: matchedContent };
+		});
+
+		console.log(updatedCommands);
+
+		commands.set(updatedCommands);
+		scriptData.set({ name: scriptName, initialCounter, initialSpan: initialSpan ?? 10 });
+	}
+
+	const getUserFromUsername = (username: string) => $users.find((user: UserFunction) => user.name === username);
 	const getScriptIncrementer = () =>
 		`scoreboard players add @s ${$scriptData.name} ${$scriptData.initialCounter}\n`;
 	const getSingleCommand = (incrementer: number, command: Command) => {
@@ -91,7 +105,7 @@
 	};
 	const getScriptFinalStatement = (incrementer: number) =>
 		`execute if score @s ${$scriptData.name} matches ${incrementer}.. run scoreboard players set @s ${$scriptData.name} -1\n`;
-
+	
 	const scriptData = writable<ScriptData>({ name: '', initialCounter: 1, initialSpan: 10 });
 
 	const addCommand = (userName: string) => {
@@ -100,7 +114,7 @@
 			console.error(`User ${userName} not found`);
 			return;
 		}
-		commands.update((commands) => [...commands, { id: uuidv4(), user, span: 0, content: '' }]);
+		commands.update((commands) => [...commands, { id: uuid(), user, span: 0, content: '' }]);
 	};
 
 	const generateCommands = () => {
@@ -127,7 +141,17 @@
 			class="mb-4 min-h-[10em]"
 			placeholder="Paste your raw script here..."
 		/>
-		<Button on:click={parseCommandsOnClick} class="w-full">Import Commands</Button>
+		<Button onclick={parseCommandsOnClick} class="w-full">Import Commands</Button>
+	</section>
+
+	<section class="mb-8 rounded-lg border p-6 shadow-md">
+		<h2 class="mb-4 text-2xl font-semibold">Import mcfunction script</h2>
+		<Textarea
+			bind:value={$rawMcfunction}
+			class="mb-4 min-h-[10em]"
+			placeholder="Paste your raw script here..."
+		/>
+		<Button onclick={parseMcfunctionScriptOnClick} class="w-full">Import Commands</Button>
 	</section>
 
 	<section class="mb-8 rounded-lg border p-6 shadow-md">
@@ -169,8 +193,7 @@
 				</div>
 			{/each}
 			<Button
-				on:click={() =>
-					users.update((users) => [...users, { name: '', scriptPrefix: '', format: '' }])}
+				onclick={() => users.update((users) => [...users, { name: '', scriptPrefix: '', format: '' }])}
 				class="w-full">Add New User</Button
 			>
 		</Collapsible.Content>
@@ -192,7 +215,7 @@
 					<span class="handle mr-4 cursor-grab">&#9776;</span>
 					<div class="flex-1">
 						<label for="commandContent-{index}" class="block text-sm font-medium">
-							{command.user.name} Command
+							{(command.user ? command.user.name : 'Unknown')} Command
 						</label>
 						<Textarea
 							id="commandContent-{index}"
@@ -209,7 +232,7 @@
 									type="number"
 									class="w-full"
 									value={command.span / 20}
-									on:input={(e) => (command.span = Number(e.target.value) * 20)}
+									on:input={(e) => (command.span = Number(e.currentTarget.value) * 20)}
 								/>
 							</div>
 							<div class="flex-1">
@@ -229,7 +252,7 @@
 
 		<div class="mt-4 flex flex-wrap gap-2">
 			{#each $users as user}
-				<Button on:click={() => addCommand(user.name)}>+ {user.name}</Button>
+				<Button onclick={() => addCommand(user.name)}>+ {user.name}</Button>
 			{/each}
 		</div>
 	</section>
@@ -237,6 +260,6 @@
 	<section class="mb-8 rounded-lg border p-6 shadow-md">
 		<h2 class="mb-4 text-2xl font-semibold">Generated Script</h2>
 		<Textarea bind:value={$finalScript} class="mb-4 min-h-[10em]" readonly />
-		<Button on:click={generateCommands} class="w-full">Generate Script</Button>
+		<Button onclick={generateCommands} class="w-full">Generate Script</Button>
 	</section>
 </div>
