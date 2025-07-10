@@ -5,213 +5,304 @@
 	import { Collapsible } from 'bits-ui';
 	import { writable } from 'svelte/store';
 	import { dndzone } from 'svelte-dnd-action';
-	import { v4 as uuidv4 } from 'uuid';
+	import { v4 as uuid } from 'uuid';
+	import {
+		parseMcfunctionScript,
+		parseCommands,
+		getUserFromUsername,
+		generateCommands as generateCommandsUtil,
+		escapeRegexSpecialChars
+	} from '$lib/parsers';
+	import { runPreview as runPreviewUtil } from '$lib/preview';
+	import type { Command, UserFunction } from '$lib/interfaces';
+	import { scriptSettings } from '$lib/stores/settings';
+	import Fa from 'svelte-fa'
+	import { faGripLines, faTrash } from '@fortawesome/free-solid-svg-icons'
 
-	interface Character {
-		name: string;
-		scriptPrefix: string;
-		contentPrefix: string;
-	}
-
-	interface Dialog {
-		id: string;
-		user: Character;
-		span: number;
-		content: string;
-	}
-
-	interface ScriptData {
-		name: string;
-		initialCounter: number;
-		initialSpan: number;
-	}
-
-	const users = writable<Character[]>([
-		{ name: 'Wieseik', scriptPrefix: 'W', contentPrefix: 'Wiesiek: ' }
+	const users = writable<UserFunction[]>([
+		{ name: 'Wiesiek', scriptPrefix: 'W', format: 'function characters:wiesiek {Line: "%s"}' }
 	]);
 
-	const dialogues = writable<Dialog[]>([]);
+	const commands = writable<Command[]>([]);
 	const finalScript = writable<string>('');
 	const rawScript = writable<string>('');
+	const rawMcfunction = writable<string>('');
 
-	// get number of alphanumerical characters and multiply by 2
-	const getSpanFromLine = (line: string) => {
-		const trimmedLine = line.trim();
-		const characterMultiplier = 4;
-		const occurences = trimmedLine.match(/[A-Za-z]+/g);
-		return occurences ? occurences.length * characterMultiplier : 0;
+	const parseCommandsOnClick = () => {
+		const parsedCommands = parseCommands($rawScript, $users, $scriptSettings.characterMultiplier, $scriptSettings.minimalSpan);
+		commands.set(parsedCommands);
 	};
 
-	const parseDialogueOnClick = () => {
-		const parsedDialogues = parseDialogue($rawScript);
-		dialogues.set(parsedDialogues);
-	};
+	const parseMcfunctionScriptOnClick = () => {
+		const {
+			scriptName,
+			initialCounter,
+			commands: parsedCommands,
+			initialSpan
+		} = parseMcfunctionScript($rawMcfunction);
 
-	const parseDialogue = (dialogueString: string) => {
-		const dialogueLines = dialogueString.split('\n');
-		const dialogues: Dialog[] = [];
-
-		for (const line of dialogueLines) {
-			const match = line.match(/^([A-Za-z]+): (.*)$/);
-			if (match) {
-				const speaker = match[1];
-				const content = match[2];
-				const span = getSpanFromLine(line);
-
-				const caseInsesitiveSpeaker = speaker.toLowerCase();
-
-				const user = $users.find(
-					(user) => user.scriptPrefix.toLocaleLowerCase() === caseInsesitiveSpeaker
-				);
-				if (user) {
-					dialogues.push({ id: uuidv4(), user, span, content });
-				} else {
-					console.error(`Unknown speaker: ${caseInsesitiveSpeaker}`);
-				}
-			} else {
-				if (dialogues.length > 0) {
-					dialogues[dialogues.length - 1].content += '\n' + line;
-				} else {
-					console.error(`Invalid dialogue line: ${line}`);
+		const updatedCommands = parsedCommands.map((command) => {
+			let matchedUser: UserFunction | undefined = undefined;
+			let matchedContent = command.content;
+			for (const user of $users as UserFunction[]) {
+				const formatRegex = escapeRegexSpecialChars(user.format).replace(/%s/, '(.+)');
+				const match = matchedContent.match(new RegExp(`^${formatRegex}$`));
+				if (match) {
+					matchedUser = user;
+					matchedContent = match[1];
+					break;
 				}
 			}
-		}
+			return { ...command, user: matchedUser, content: matchedContent };
+		});
 
-		return dialogues;
+		commands.set(updatedCommands);
+		scriptSettings.set({ 
+			name: scriptName, 
+			initialCounter, 
+			initialSpan: initialSpan ?? 10,
+			characterMultiplier: $scriptSettings.characterMultiplier,
+			minimalSpan: $scriptSettings.minimalSpan
+		});
 	};
 
-	const getUserFromUsername = (username: string) => $users.find((user) => user.name === username);
-	const getScriptIncrementer = () =>
-		`scoreboard players add @s ${$scriptData.name} ${$scriptData.initialCounter}\n`;
-	const getSingleDialog = (incrementer: number, dialog: Dialog) => {
-		const contentPrefix = dialog.user.contentPrefix;
-		return `execute if score @s ${$scriptData.name} matches ${incrementer} run tellraw @a [${contentPrefix}, {"text":"${dialog.content}", "italic": true, "color":"gray", "bold": "false"}]\n`;
-	};
-	const getScriptFinalStatement = (incrementer: number) =>
-		`execute if score @s ${$scriptData.name} matches ${incrementer}.. run scoreboard players set @s ${$scriptData.name} -1\n`;
-
-	const scriptData = writable<ScriptData>({ name: '', initialCounter: 1, initialSpan: 10 });
-
-	const addDialogue = (userName: string) => {
-		const user = getUserFromUsername(userName);
+	const addCommand = (userName: string) => {
+		const user = getUserFromUsername(userName, $users);
 		if (!user) {
 			console.error(`User ${userName} not found`);
 			return;
 		}
-		dialogues.update((dialogues) => [
-			...dialogues,
-			{ id: uuidv4(), user, span: 0, content: '' }
-		]);
+		commands.update((commands) => [...commands, { id: uuid(), user, span: 0, content: '' }]);
 	};
 
-	const generateDialogues = () => {
-		const initialScriptContent = getScriptIncrementer();
-		let realScriptContent = '';
-		let conversationSpan = $scriptData.initialSpan;
-		for (let i = 0; i < $dialogues.length; i++) {
-			realScriptContent += getSingleDialog(conversationSpan, $dialogues[i]);
-			conversationSpan += $dialogues[i].span;
+	const removeCommand = (commandId: string) => {
+		commands.update((commands) => commands.filter((cmd) => cmd.id !== commandId));
+	};
+
+	const changeCommandUser = (commandId: string, userName: string) => {
+		const user = getUserFromUsername(userName, $users);
+		if (!user) {
+			console.error(`User ${userName} not found`);
+			return;
 		}
-		const endingScriptContent = getScriptFinalStatement(conversationSpan);
-		const wholeScriptContent = initialScriptContent + realScriptContent + endingScriptContent;
+		commands.update((commands) =>
+			commands.map((cmd) => (cmd.id === commandId ? { ...cmd, user } : cmd))
+		);
+	};
+
+	const increaseAllSpans = (amount: number = 20) => {
+		commands.update((commands) =>
+			commands.map((cmd) => ({ ...cmd, span: cmd.span + amount }))
+		);
+	};
+
+	const decreaseAllSpans = (amount: number = 20) => {
+		commands.update((commands) =>
+			commands.map((cmd) => ({ ...cmd, span: Math.max(0, cmd.span - amount) }))
+		);
+	};
+
+	const generateCommands = () => {
+		const wholeScriptContent = generateCommandsUtil($commands, $scriptSettings);
 		finalScript.set(wholeScriptContent);
+	};
+
+	const previewVisible = writable<boolean>(false);
+	const currentPreviewCommand = writable<string>('');
+	const previewIndex = writable<number>(-1);
+
+	const runPreview = () => {
+		runPreviewUtil($commands, $scriptSettings, {
+			setPreviewVisible: previewVisible.set,
+			setPreviewIndex: previewIndex.set,
+			setCurrentPreviewCommand: currentPreviewCommand.set
+		});
 	};
 </script>
 
 <div class="container mx-auto p-4">
-	<h1 class="text-3xl font-bold mb-6">Dialogue Generator</h1>
+	<h1 class="mb-6 text-3xl font-bold">Command Generator</h1>
 
-	<section class="mb-8 p-6 border rounded-lg shadow-md">
-		<h2 class="text-2xl font-semibold mb-4">Import Plain Text Dialogues</h2>
-		<Textarea bind:value={$rawScript} class="min-h-[10em] mb-4" placeholder="Paste your raw script here..." />
-		<Button on:click={parseDialogueOnClick} class="w-full">Import Dialogues</Button>
+	<section class="mb-8 rounded-lg border p-6 shadow-md">
+		<h2 class="mb-4 text-2xl font-semibold">Import dialogues script</h2>
+		<Textarea
+			bind:value={$rawScript}
+			class="mb-4 min-h-[10em]"
+			placeholder="Paste your raw script here..."
+		/>
+		<Button onclick={parseCommandsOnClick} class="w-full">Import Commands</Button>
 	</section>
 
-	<section class="mb-8 p-6 border rounded-lg shadow-md">
-		<h2 class="text-2xl font-semibold mb-4">Script Settings</h2>
+	<section class="mb-8 rounded-lg border p-6 shadow-md">
+		<h2 class="mb-4 text-2xl font-semibold">Import mcfunction script</h2>
+		<Textarea
+			bind:value={$rawMcfunction}
+			class="mb-4 min-h-[10em]"
+			placeholder="Paste your raw script here..."
+		/>
+		<Button onclick={parseMcfunctionScriptOnClick} class="w-full">Import Commands</Button>
+	</section>
+
+	<section class="mb-8 rounded-lg border p-6 shadow-md">
+		<h2 class="mb-4 text-2xl font-semibold">Script Settings</h2>
 		<div class="mb-4">
-			<label for="scriptName" class="block text-sm font-medium ">Script Name</label>
-			<Input id="scriptName" bind:value={$scriptData.name} placeholder="e.g., my_dialogue_script" />
+			<label for="scriptName" class="block text-sm font-medium">Script Name</label>
+			<Input id="scriptName" bind:value={$scriptSettings.name} placeholder="e.g., my_command_script" />
 		</div>
 		<div class="mb-4">
-			<label for="initialCounter" class="block text-sm font-medium ">Initial Counter</label>
-			<Input id="initialCounter" type="number" bind:value={$scriptData.initialCounter} />
+			<label for="initialCounter" class="block text-sm font-medium">Initial Counter</label>
+			<Input id="initialCounter" type="number" bind:value={$scriptSettings.initialCounter} />
 		</div>
 		<div class="mb-4">
-			<label for="initialSpan" class="block text-sm font-medium ">Initial Span</label>
-			<Input id="initialSpan" type="number" bind:value={$scriptData.initialSpan} />
+			<label for="initialSpan" class="block text-sm font-medium">Initial Span</label>
+			<Input id="initialSpan" type="number" bind:value={$scriptSettings.initialSpan} />
+		</div>
+		<div class="mb-4">
+			<label for="characterMultiplier" class="block text-sm font-medium">Character Multiplier</label>
+			<Input id="characterMultiplier" type="number" bind:value={$scriptSettings.characterMultiplier} />
+		</div>
+		<div class="mb-4">
+			<label for="minimalSpan" class="block text-sm font-medium">Minimal Span</label>
+			<Input id="minimalSpan" type="number" bind:value={$scriptSettings.minimalSpan} />
 		</div>
 	</section>
 
-	<Collapsible.Root open={true} class="mb-8 p-6 border rounded-lg shadow-md">
-		<Collapsible.Trigger class="text-2xl font-semibold mb-4 w-full text-left">Users</Collapsible.Trigger>
+	<Collapsible.Root open={true} class="mb-8 rounded-lg border p-6 shadow-md">
+		<Collapsible.Trigger class="mb-4 w-full text-left text-2xl font-semibold"
+			>Users</Collapsible.Trigger
+		>
 		<Collapsible.Content>
 			{#each $users as user, index}
-				<div class="flex flex-col md:flex-row gap-4 mb-4 p-4 border rounded-md">
+				<div class="mb-4 flex flex-col gap-4 rounded-md border p-4 md:flex-row">
 					<div class="flex-1">
-						<label for="userName-{index}" class="block text-sm font-medium ">Name</label>
-						<Input id="userName-{index}" bind:value={user.name} placeholder="Character Name" />
+						<label for="userName-{index}" class="block text-sm font-medium">Name</label>
+						<Input id="userName-{index}" bind:value={user.name} placeholder="Function Name" />
 					</div>
 					<div class="flex-1">
-						<label for="scriptPrefix-{index}" class="block text-sm font-medium ">Script Prefix</label>
+						<label for="scriptPrefix-{index}" class="block text-sm font-medium">Script Prefix</label
+						>
 						<Input id="scriptPrefix-{index}" bind:value={user.scriptPrefix} placeholder="e.g., W" />
 					</div>
 					<div class="flex-1">
-						<label for="contentPrefix-{index}" class="block text-sm font-medium ">Content Prefix</label>
-						<Input id="contentPrefix-{index}" bind:value={user.contentPrefix} placeholder="e.g., Wiesiek: " />
+						<label for="format-{index}" class="block text-sm font-medium">Format</label>
+						<Input id="format-{index}" bind:value={user.format} placeholder="e.g., Wiesiek: " />
 					</div>
 				</div>
 			{/each}
 			<Button
-				on:click={() =>
-					users.update((users) => [...users, { name: '', scriptPrefix: '', contentPrefix: '' }])}
-				class="w-full"
-				>Add New User</Button
+				onclick={() =>
+					users.update((users) => [...users, { name: '', scriptPrefix: '', format: '' }])}
+				class="w-full">Add New User</Button
 			>
 		</Collapsible.Content>
 	</Collapsible.Root>
 
-	<section class="mb-8 p-6 border rounded-lg shadow-md">
-		<h2 class="text-2xl font-semibold mb-4">Dialogues</h2>
-				<div
-					use:dndzone={{ items: $dialogues, flipDurationMs: 50 }}
-
-						on:consider={(e) => { dialogues.set(e.detail.items); }}
-						on:finalize={(e) => { dialogues.set(e.detail.items); }}
-					>
-					{#each $dialogues as dialogue, index (dialogue.id)}
-						<div class="mb-4 p-4 border rounded-md flex items-center">
-							<span class="handle mr-4 cursor-grab">&#9776;</span>
-							<div class="flex-1">
-								<label for="dialogueContent-{index}" class="block text-sm font-medium ">
-									{dialogue.user.name} Dialogue
-								</label>
-								<Textarea id="dialogueContent-{index}" bind:value={dialogue.content} class="min-h-[3em] mb-2" />
-								<div class="flex flex-row gap-4">
-									<div class="flex-1">
-										<label for="dialogueSpanMultiplier-{index}" class="block text-sm font-medium ">Span Multiplier (x20)</label>
-										<Input id="dialogueSpanMultiplier-{index}" type="number" class="w-full" value={dialogue.span / 20} on:input={(e) => dialogue.span = Number(e.target.value) * 20} />
-									</div>
-									<div class="flex-1">
-										<label for="dialogueSpan-{index}" class="block text-sm font-medium ">Raw Span</label>
-										<Input id="dialogueSpan-{index}" type="number" class="w-full" bind:value={dialogue.span} />
-									</div>
-								</div>
-							</div>
+	<section class="mb-8 rounded-lg border p-6 shadow-md">
+		<h2 class="mb-4 text-2xl font-semibold">Commands</h2>
+		<div class="mb-4 flex gap-2">
+			<Button onclick={() => increaseAllSpans(5)} class="flex-1">+5 All Spans</Button>
+			<Button onclick={() => decreaseAllSpans(5)} class="flex-1">-5 All Spans</Button>
+		</div>
+		<div
+			use:dndzone={{ items: $commands, flipDurationMs: 50 }}
+			on:consider={(e) => {
+				commands.set(e.detail.items);
+			}}
+			on:finalize={(e) => {
+				commands.set(e.detail.items);
+			}}
+		>
+			{#each $commands as command, index (command.id)}
+				<div class="mb-4 flex items-center rounded-md border p-4">
+					<span class="handle mr-4 cursor-grab">
+						<Fa icon={faGripLines} />
+					</span>
+					<div class="flex-1">
+						<div class="mb-2 flex gap-3 items-center justify-between">
+							<select
+								id="commandUser-{index}"
+								class="w-full h-full rounded border px-3 py-1 text-sm bg-black text-white"
+								value={command.user?.name || ''}
+								on:change={(e) => {
+									const target = e.target as HTMLSelectElement | null;
+									if (target) changeCommandUser(command.id, target.value);
+								}}
+							>
+								<option value="">No user</option>
+								{#each $users as user}
+									<option value={user.name}>{user.name}</option>
+								{/each}
+							</select>
+							<label for="commandSpanMultiplier-{index}" class="block text-xs">seconds:</label>
+							<Input
+								id="commandSpanMultiplier-{index}"
+								type="number"
+								class="w-20"
+								value={command.span / 20}
+								on:input={(e) => {
+									const target = e.target as HTMLInputElement | null;
+									if (target) command.span = Number(target.value) * 20;
+								}}
+							/>
+							<label for="commandSpan-{index}" class="block text-xs">ticks:</label>
+							<Input
+								id="commandSpan-{index}"
+								type="number"
+								class="w-20"
+								bind:value={command.span}
+							/>
+							<button
+								class="text-red-500 hover:text-red-700 w-6 h-6 flex items-center justify-center"
+								on:click={() => removeCommand(command.id)}
+								title="Remove command"
+								aria-label="Remove command"
+							>
+								<Fa icon={faTrash} />
+							</button>
 						</div>
-					{/each}
+						<Textarea
+							id="commandContent-{index}"
+							bind:value={command.content}
+							class="mb-2 min-h-[3em]"
+						/>
+					</div>
 				</div>
+			{/each}
+		</div>
 
-				<div class="flex flex-wrap gap-2 mt-4">
-					{#each $users as user}
-						<Button on:click={() => addDialogue(user.name)}>+ {user.name}</Button>
-					{/each}
-				</div>
-		</section>
+		<div class="mt-4 flex flex-wrap gap-2">
+			{#each $users as user}
+				<Button onclick={() => addCommand(user.name)}>+ {user.name}</Button>
+			{/each}
+		</div>
+	</section>
 
-		<section class="mb-8 p-6 border rounded-lg shadow-md">
-			<h2 class="text-2xl font-semibold mb-4">Generated Script</h2>
-			<Textarea bind:value={$finalScript} class="min-h-[10em] mb-4" readonly />
-			<Button on:click={generateDialogues} class="w-full">Generate Script</Button>
-		</section>
+	<section class="mb-8 rounded-lg border p-6 shadow-md">
+		<h2 class="mb-4 text-2xl font-semibold">Generated Script</h2>
+		<Textarea bind:value={$finalScript} class="mb-4 min-h-[10em]" readonly />
+		<div class="flex gap-2">
+			<Button onclick={generateCommands} class="flex-1">Generate Script</Button>
+			<Button onclick={runPreview} class="flex-1">Run Preview</Button>
+		</div>
+	</section>
+
+	{#if $previewVisible}
+		<div class="fixed bottom-4 right-4 z-50 max-w-md rounded-lg border bg-black p-4 shadow-lg">
+			<div class="mb-2 flex items-center justify-between">
+				<h3 class="text-lg font-semibold">Preview</h3>
+				<button
+					class="text-white-700 hover:text-gray-700"
+					on:click={() => previewVisible.set(false)}
+				>
+					✕
+				</button>
+			</div>
+			<div class="text-white-600 mb-2 text-sm">
+				Command {$previewIndex + 1} of {$commands.length}
+			</div>
+			<div class="bg-black-50 rounded border p-3 font-mono text-sm">
+				{$currentPreviewCommand || 'Waiting...'}
+			</div>
+		</div>
+	{/if}
 </div>
