@@ -115,16 +115,14 @@ export const parseMcfunctionScript = (script: string) => {
 	};
 };
 
-export const getSpanFromLine = (line: string) => {
+export const getSpanFromLine = (line: string, characterMultiplier: number, minimalSpan: number) => {
 	const trimmedLine = line.trim();
-	const characterMultiplier = 4;
 	const occurences = trimmedLine.match(/[A-Za-z]+/g);
-	const defaultMinimumSpan = 20;
-	const finalSpan = defaultMinimumSpan + (occurences ? occurences.length * characterMultiplier : 0);
+	const finalSpan = minimalSpan + (occurences ? occurences.length * characterMultiplier : 0);
 	return finalSpan;
 };
 
-export const parseCommands = (commandString: string, users: UserFunction[]) => {
+export const parseCommands = (commandString: string, users: UserFunction[], characterMultiplier: number, minimalSpan: number) => {
 	const commandLines = commandString.split('\n');
 	const commands: Command[] = [];
 
@@ -133,7 +131,7 @@ export const parseCommands = (commandString: string, users: UserFunction[]) => {
 		if (match) {
 			const speaker = match[1];
 			const content = match[2];
-			const span = getSpanFromLine(line);
+			const span = getSpanFromLine(line, characterMultiplier, minimalSpan);
 
 			const caseInsesitiveSpeaker = speaker.toLowerCase();
 

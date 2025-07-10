@@ -15,14 +15,9 @@
 	} from '$lib/parsers';
 	import { runPreview as runPreviewUtil } from '$lib/preview';
 	import type { Command, UserFunction } from '$lib/interfaces';
+	import { scriptSettings } from '$lib/stores/settings';
 	import Fa from 'svelte-fa'
 	import { faGripLines, faTrash } from '@fortawesome/free-solid-svg-icons'
-
-	interface ScriptData {
-		name: string;
-		initialCounter: number;
-		initialSpan: number;
-	}
 
 	const users = writable<UserFunction[]>([
 		{ name: 'Wiesiek', scriptPrefix: 'W', format: 'function characters:wiesiek {Line: "%s"}' }
@@ -34,7 +29,7 @@
 	const rawMcfunction = writable<string>('');
 
 	const parseCommandsOnClick = () => {
-		const parsedCommands = parseCommands($rawScript, $users);
+		const parsedCommands = parseCommands($rawScript, $users, $scriptSettings.characterMultiplier, $scriptSettings.minimalSpan);
 		commands.set(parsedCommands);
 	};
 
@@ -62,10 +57,14 @@
 		});
 
 		commands.set(updatedCommands);
-		scriptData.set({ name: scriptName, initialCounter, initialSpan: initialSpan ?? 10 });
+		scriptSettings.set({ 
+			name: scriptName, 
+			initialCounter, 
+			initialSpan: initialSpan ?? 10,
+			characterMultiplier: $scriptSettings.characterMultiplier,
+			minimalSpan: $scriptSettings.minimalSpan
+		});
 	};
-
-	const scriptData = writable<ScriptData>({ name: '', initialCounter: 1, initialSpan: 10 });
 
 	const addCommand = (userName: string) => {
 		const user = getUserFromUsername(userName, $users);
@@ -104,7 +103,7 @@
 	};
 
 	const generateCommands = () => {
-		const wholeScriptContent = generateCommandsUtil($commands, $scriptData);
+		const wholeScriptContent = generateCommandsUtil($commands, $scriptSettings);
 		finalScript.set(wholeScriptContent);
 	};
 
@@ -113,7 +112,7 @@
 	const previewIndex = writable<number>(-1);
 
 	const runPreview = () => {
-		runPreviewUtil($commands, $scriptData, {
+		runPreviewUtil($commands, $scriptSettings, {
 			setPreviewVisible: previewVisible.set,
 			setPreviewIndex: previewIndex.set,
 			setCurrentPreviewCommand: currentPreviewCommand.set
@@ -148,15 +147,23 @@
 		<h2 class="mb-4 text-2xl font-semibold">Script Settings</h2>
 		<div class="mb-4">
 			<label for="scriptName" class="block text-sm font-medium">Script Name</label>
-			<Input id="scriptName" bind:value={$scriptData.name} placeholder="e.g., my_command_script" />
+			<Input id="scriptName" bind:value={$scriptSettings.name} placeholder="e.g., my_command_script" />
 		</div>
 		<div class="mb-4">
 			<label for="initialCounter" class="block text-sm font-medium">Initial Counter</label>
-			<Input id="initialCounter" type="number" bind:value={$scriptData.initialCounter} />
+			<Input id="initialCounter" type="number" bind:value={$scriptSettings.initialCounter} />
 		</div>
 		<div class="mb-4">
 			<label for="initialSpan" class="block text-sm font-medium">Initial Span</label>
-			<Input id="initialSpan" type="number" bind:value={$scriptData.initialSpan} />
+			<Input id="initialSpan" type="number" bind:value={$scriptSettings.initialSpan} />
+		</div>
+		<div class="mb-4">
+			<label for="characterMultiplier" class="block text-sm font-medium">Character Multiplier</label>
+			<Input id="characterMultiplier" type="number" bind:value={$scriptSettings.characterMultiplier} />
+		</div>
+		<div class="mb-4">
+			<label for="minimalSpan" class="block text-sm font-medium">Minimal Span</label>
+			<Input id="minimalSpan" type="number" bind:value={$scriptSettings.minimalSpan} />
 		</div>
 	</section>
 
