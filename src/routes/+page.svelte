@@ -6,8 +6,15 @@
 	import { writable } from 'svelte/store';
 	import { dndzone } from 'svelte-dnd-action';
 	import { v4 as uuid } from 'uuid';
-	import { escapeRegexSpecialChars, parseMcfunctionScript } from '$lib/utils';
-	import type { Command, UserFunction } from '$lib/command.interface';
+	import {
+		parseMcfunctionScript,
+		parseCommands,
+		getUserFromUsername,
+		generateCommands as generateCommandsUtil,
+		escapeRegexSpecialChars
+	} from '$lib/parsers';
+	import { runPreview as runPreviewUtil } from '$lib/preview';
+	import type { Command, UserFunction } from '$lib/interfaces';
 
 	interface ScriptData {
 		name: string;
@@ -15,67 +22,33 @@
 		initialSpan: number;
 	}
 
-	const users = writable<UserFunction[]>([{ name: 'Wiesiek', scriptPrefix: 'W', format: 'function characters:wiesiek {Line: "%s"}' }]);
+	const users = writable<UserFunction[]>([
+		{ name: 'Wiesiek', scriptPrefix: 'W', format: 'function characters:wiesiek {Line: "%s"}' }
+	]);
 
 	const commands = writable<Command[]>([]);
 	const finalScript = writable<string>('');
 	const rawScript = writable<string>('');
 	const rawMcfunction = writable<string>('');
 
-	// get number of alphanumerical characters and multiply by 2
-	const getSpanFromLine = (line: string) => {
-		const trimmedLine = line.trim();
-		const characterMultiplier = 4;
-		const occurences = trimmedLine.match(/[A-Za-z]+/g);
-		return occurences ? occurences.length * characterMultiplier : 0;
-	};
-
 	const parseCommandsOnClick = () => {
-		const parsedCommands = parseCommands($rawScript);
+		const parsedCommands = parseCommands($rawScript, $users);
 		commands.set(parsedCommands);
 	};
 
-	const parseCommands = (commandString: string) => {
-		const commandLines = commandString.split('\n');
-		const commands: Command[] = [];
-
-		for (const line of commandLines) {
-			const match = line.match(/^([A-Za-z]+): (.*)$/);
-			if (match) {
-				const speaker = match[1];
-				const content = match[2];
-				const span = getSpanFromLine(line);
-
-				const caseInsesitiveSpeaker = speaker.toLowerCase();
-
-				const user = $users.find(
-					(user) => user.scriptPrefix.toLocaleLowerCase() === caseInsesitiveSpeaker
-				);
-				if (user) {
-					commands.push({ id: uuid(), user, span, content });
-				} else {
-					console.error(`Unknown speaker: ${caseInsesitiveSpeaker}`);
-				}
-			} else {
-				if (commands.length > 0) {
-					commands[commands.length - 1].content += '\n' + line;
-				} else {
-					console.error(`Invalid command line: ${line}`);
-				}
-			}
-		}
-
-		return commands;
-	};
-
 	const parseMcfunctionScriptOnClick = () => {
-		const {scriptName, initialCounter, commands: parsedCommands, initialSpan} = parseMcfunctionScript($rawMcfunction);
+		const {
+			scriptName,
+			initialCounter,
+			commands: parsedCommands,
+			initialSpan
+		} = parseMcfunctionScript($rawMcfunction);
 
 		const updatedCommands = parsedCommands.map((command) => {
 			let matchedUser: UserFunction | undefined = undefined;
 			let matchedContent = command.content;
 			for (const user of $users as UserFunction[]) {
-				const formatRegex = escapeRegexSpecialChars(user.format).replace(/%s/, "(.+)");
+				const formatRegex = escapeRegexSpecialChars(user.format).replace(/%s/, '(.+)');
 				const match = matchedContent.match(new RegExp(`^${formatRegex}$`));
 				if (match) {
 					matchedUser = user;
@@ -86,30 +59,14 @@
 			return { ...command, user: matchedUser, content: matchedContent };
 		});
 
-		console.log(updatedCommands);
-
 		commands.set(updatedCommands);
 		scriptData.set({ name: scriptName, initialCounter, initialSpan: initialSpan ?? 10 });
-	}
-
-	const getUserFromUsername = (username: string) => $users.find((user: UserFunction) => user.name === username);
-	const getScriptIncrementer = () =>
-		`scoreboard players add @s ${$scriptData.name} ${$scriptData.initialCounter}\n`;
-	const getSingleCommand = (incrementer: number, command: Command) => {
-		let renderedCommand = command.content;
-		if(command.user) {
-			const format = command.user.format;
-			renderedCommand = format.replace('%s', command.content);
-		}
-		return `execute if score @s ${$scriptData.name} matches ${incrementer} run ${renderedCommand}\n`;
 	};
-	const getScriptFinalStatement = (incrementer: number) =>
-		`execute if score @s ${$scriptData.name} matches ${incrementer}.. run scoreboard players set @s ${$scriptData.name} -1\n`;
-	
+
 	const scriptData = writable<ScriptData>({ name: '', initialCounter: 1, initialSpan: 10 });
 
 	const addCommand = (userName: string) => {
-		const user = getUserFromUsername(userName);
+		const user = getUserFromUsername(userName, $users);
 		if (!user) {
 			console.error(`User ${userName} not found`);
 			return;
@@ -118,15 +75,7 @@
 	};
 
 	const generateCommands = () => {
-		const initialScriptContent = getScriptIncrementer();
-		let realScriptContent = '';
-		let conversationSpan = $scriptData.initialSpan;
-		for (let i = 0; i < $commands.length; i++) {
-			realScriptContent += getSingleCommand(conversationSpan, $commands[i]);
-			conversationSpan += $commands[i].span;
-		}
-		const endingScriptContent = getScriptFinalStatement(conversationSpan);
-		const wholeScriptContent = initialScriptContent + realScriptContent + endingScriptContent;
+		const wholeScriptContent = generateCommandsUtil($commands, $scriptData);
 		finalScript.set(wholeScriptContent);
 	};
 
@@ -135,37 +84,11 @@
 	const previewIndex = writable<number>(-1);
 
 	const runPreview = () => {
-		if ($commands.length === 0) return;
-		
-		previewVisible.set(true);
-		previewIndex.set(-1);
-		currentPreviewCommand.set('');
-		
-		let currentSpan = $scriptData.initialSpan;
-		
-		const showNextCommand = (index: number) => {
-			if (index >= $commands.length) {
-				setTimeout(() => {
-					previewVisible.set(false);
-					previewIndex.set(-1);
-					currentPreviewCommand.set('');
-				}, currentSpan);
-				return;
-			}
-			
-			const command = $commands[index];
-			previewIndex.set(index);
-			
-			currentPreviewCommand.set(command.content);
-			
-			setTimeout(() => {
-				showNextCommand(index + 1);
-			}, command.span * 50);
-		};
-		
-		setTimeout(() => {
-			showNextCommand(0);
-		}, currentSpan);
+		runPreviewUtil($commands, $scriptData, {
+			setPreviewVisible: previewVisible.set,
+			setPreviewIndex: previewIndex.set,
+			setCurrentPreviewCommand: currentPreviewCommand.set
+		});
 	};
 </script>
 
@@ -231,7 +154,8 @@
 				</div>
 			{/each}
 			<Button
-				onclick={() => users.update((users) => [...users, { name: '', scriptPrefix: '', format: '' }])}
+				onclick={() =>
+					users.update((users) => [...users, { name: '', scriptPrefix: '', format: '' }])}
 				class="w-full">Add New User</Button
 			>
 		</Collapsible.Content>
@@ -253,7 +177,7 @@
 					<span class="handle mr-4 cursor-grab">&#9776;</span>
 					<div class="flex-1">
 						<label for="commandContent-{index}" class="block text-sm font-medium">
-							{(command.user ? command.user.name : 'Unknown')} Command
+							{command.user ? command.user.name : 'Unknown'} Command
 						</label>
 						<Textarea
 							id="commandContent-{index}"
@@ -308,17 +232,17 @@
 		<div class="fixed bottom-4 right-4 z-50 max-w-md rounded-lg border bg-black p-4 shadow-lg">
 			<div class="mb-2 flex items-center justify-between">
 				<h3 class="text-lg font-semibold">Preview</h3>
-				<button 
-					class="text-white-700 hover:text-gray-700" 
+				<button
+					class="text-white-700 hover:text-gray-700"
 					on:click={() => previewVisible.set(false)}
 				>
 					✕
 				</button>
 			</div>
-			<div class="mb-2 text-sm text-white-600">
+			<div class="text-white-600 mb-2 text-sm">
 				Command {$previewIndex + 1} of {$commands.length}
 			</div>
-			<div class="rounded border bg-black-50 p-3 font-mono text-sm">
+			<div class="bg-black-50 rounded border p-3 font-mono text-sm">
 				{$currentPreviewCommand || 'Waiting...'}
 			</div>
 		</div>

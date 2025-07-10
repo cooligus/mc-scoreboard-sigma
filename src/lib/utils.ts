@@ -2,8 +2,6 @@ import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { cubicOut } from 'svelte/easing';
 import type { TransitionConfig } from 'svelte/transition';
-import type { Command } from '$lib/command.interface';
-import { v4 as uuid } from 'uuid';
 
 export function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs));
@@ -54,81 +52,5 @@ export const flyAndScale = (
 			});
 		},
 		easing: cubicOut
-	};
-};
-
-export function escapeRegexSpecialChars(str: string): string {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-export const parseMcfunctionScript = (script: string) => {
-	const lines = script.split('\n').filter(line => line.trim() !== '');
-
-	if (lines.length < 2) {
-		throw new Error('Invalid script format: Not enough lines.');
-	}
-
-	const initialLineRegex = /^scoreboard players add @s (\S+) (\d+)$/;
-	const commandLineRegex = /^execute if score (\S+) (\S+) matches (\d+) run (.+)$/;
-	const finalLineRegex = /^execute if score (\S+) (\S+) matches (\d+)\.\. run scoreboard players set (\S+) (\S+) -1$/;
-
-	const initialMatch = lines[0].match(initialLineRegex);
-	if (!initialMatch) {
-		throw new Error('Invalid script format: Could not parse initial line.');
-	}
-
-	const scriptName = initialMatch[1];
-	const initialCounter = parseInt(initialMatch[2], 10);
-
-	const commands: Command[] = [];
-	let previousAbsoluteIncrementer = initialCounter;
-	let initialSpan: number | null = null;
-	let prevCommand: Command | null = null;
-
-	for (let i = 1; i < lines.length; i++) {
-		const line = lines[i];
-		const commandMatch = line.match(commandLineRegex);
-		const finalMatch = line.match(finalLineRegex);
-
-		if (commandMatch) {
-			const currentScriptName = commandMatch[2];
-			if (currentScriptName !== scriptName) {
-				throw new Error('Inconsistent script name found in command line.');
-			}
-			const currentAbsoluteIncrementer = parseInt(commandMatch[3], 10);
-			const span = currentAbsoluteIncrementer - previousAbsoluteIncrementer;
-
-			if (prevCommand) {
-				prevCommand.span = span;
-			} else {
-				initialSpan = span;
-			}
-
-			const command: Command = {
-				id: uuid(),
-				span: 0,
-				content: commandMatch[4]
-			};
-			commands.push(command);
-			prevCommand = command;
-			previousAbsoluteIncrementer = currentAbsoluteIncrementer;
-		} else if (finalMatch) {
-			const currentScriptName = finalMatch[2];
-			if (currentScriptName !== scriptName) {
-				throw new Error('Inconsistent script name found in final line.');
-			}
-			if (prevCommand) {
-				prevCommand.span = 0;
-			}
-		} else {
-			throw new Error(`Invalid script format: Unrecognized line type: ${line}`);
-		}
-	}
-
-	return {
-		scriptName,
-		initialCounter,
-		commands,
-		initialSpan,
 	};
 };
