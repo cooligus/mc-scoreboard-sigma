@@ -2,6 +2,8 @@
 	import Button from '$lib/components/ui/button/button.svelte';
 	import Input from '$lib/components/ui/input/input.svelte';
 	import Textarea from '$lib/components/ui/textarea/textarea.svelte';
+	import Navbar from '$lib/components/Navbar.svelte';
+	import * as Dialog from '$lib/components/ui/dialog';
 	import { Collapsible } from 'bits-ui';
 	import { writable } from 'svelte/store';
 	import { dndzone } from 'svelte-dnd-action';
@@ -28,9 +30,15 @@
 	const rawScript = writable<string>('');
 	const rawMcfunction = writable<string>('');
 
+	const importDialogOpen = writable(false);
+	const settingsDialogOpen = writable(false);
+	const usersDialogOpen = writable(false);
+	const generateDialogOpen = writable(false);
+
 	const parseCommandsOnClick = () => {
 		const parsedCommands = parseCommands($rawScript, $users, $scriptSettings.characterMultiplier, $scriptSettings.minimalSpan);
 		commands.set(parsedCommands);
+		importDialogOpen.set(false);
 	};
 
 	const parseMcfunctionScriptOnClick = () => {
@@ -64,6 +72,7 @@
 			characterMultiplier: $scriptSettings.characterMultiplier,
 			minimalSpan: $scriptSettings.minimalSpan
 		});
+		importDialogOpen.set(false);
 	};
 
 	const addCommand = (userName: string) => {
@@ -113,89 +122,43 @@
 
 	const runPreview = () => {
 		runPreviewUtil($commands, $scriptSettings, {
-			setPreviewVisible: previewVisible.set,
-			setPreviewIndex: previewIndex.set,
-			setCurrentPreviewCommand: currentPreviewCommand.set
+			setPreviewVisible: (visible) => {
+				previewVisible.set(visible);
+			},
+			setPreviewIndex: (index) => {
+				previewIndex.set(index);
+			},
+			setCurrentPreviewCommand: (command) => {
+				currentPreviewCommand.set(command);
+			}
 		});
+	};
+
+	const handleImport = () => importDialogOpen.set(true);
+	const handleSettings = () => settingsDialogOpen.set(true);
+	const handleUsers = () => usersDialogOpen.set(true);
+	const handlePreview = () => {
+		runPreview();
+	};
+	const handleExport = () => {
+		generateCommands();
+		generateDialogOpen.set(true);
 	};
 </script>
 
+<Navbar 
+	onImport={handleImport}
+	onSettings={handleSettings}
+	onUsers={handleUsers}
+	onPreview={handlePreview}
+	onExport={handleExport}
+/>
+
 <div class="container mx-auto p-4">
-	<h1 class="mb-6 text-3xl font-bold">Command Generator</h1>
-
-	<section class="mb-8 rounded-lg border p-6 shadow-md">
-		<h2 class="mb-4 text-2xl font-semibold">Import dialogues script</h2>
-		<Textarea
-			bind:value={$rawScript}
-			class="mb-4 min-h-[10em]"
-			placeholder="Paste your raw script here..."
-		/>
-		<Button onclick={parseCommandsOnClick} class="w-full">Import Commands</Button>
-	</section>
-
-	<section class="mb-8 rounded-lg border p-6 shadow-md">
-		<h2 class="mb-4 text-2xl font-semibold">Import mcfunction script</h2>
-		<Textarea
-			bind:value={$rawMcfunction}
-			class="mb-4 min-h-[10em]"
-			placeholder="Paste your raw script here..."
-		/>
-		<Button onclick={parseMcfunctionScriptOnClick} class="w-full">Import Commands</Button>
-	</section>
-
-	<section class="mb-8 rounded-lg border p-6 shadow-md">
-		<h2 class="mb-4 text-2xl font-semibold">Script Settings</h2>
-		<div class="mb-4">
-			<label for="scriptName" class="block text-sm font-medium">Script Name</label>
-			<Input id="scriptName" bind:value={$scriptSettings.name} placeholder="e.g., my_command_script" />
-		</div>
-		<div class="mb-4">
-			<label for="initialCounter" class="block text-sm font-medium">Initial Counter</label>
-			<Input id="initialCounter" type="number" bind:value={$scriptSettings.initialCounter} />
-		</div>
-		<div class="mb-4">
-			<label for="initialSpan" class="block text-sm font-medium">Initial Span</label>
-			<Input id="initialSpan" type="number" bind:value={$scriptSettings.initialSpan} />
-		</div>
-		<div class="mb-4">
-			<label for="characterMultiplier" class="block text-sm font-medium">Character Multiplier</label>
-			<Input id="characterMultiplier" type="number" bind:value={$scriptSettings.characterMultiplier} />
-		</div>
-		<div class="mb-4">
-			<label for="minimalSpan" class="block text-sm font-medium">Minimal Span</label>
-			<Input id="minimalSpan" type="number" bind:value={$scriptSettings.minimalSpan} />
-		</div>
-	</section>
-
-	<Collapsible.Root open={true} class="mb-8 rounded-lg border p-6 shadow-md">
-		<Collapsible.Trigger class="mb-4 w-full text-left text-2xl font-semibold"
-			>Users</Collapsible.Trigger
-		>
-		<Collapsible.Content>
-			{#each $users as user, index}
-				<div class="mb-4 flex flex-col gap-4 rounded-md border p-4 md:flex-row">
-					<div class="flex-1">
-						<label for="userName-{index}" class="block text-sm font-medium">Name</label>
-						<Input id="userName-{index}" bind:value={user.name} placeholder="Function Name" />
-					</div>
-					<div class="flex-1">
-						<label for="scriptPrefix-{index}" class="block text-sm font-medium">Script Prefix</label
-						>
-						<Input id="scriptPrefix-{index}" bind:value={user.scriptPrefix} placeholder="e.g., W" />
-					</div>
-					<div class="flex-1">
-						<label for="format-{index}" class="block text-sm font-medium">Format</label>
-						<Input id="format-{index}" bind:value={user.format} placeholder="e.g., Wiesiek: " />
-					</div>
-				</div>
-			{/each}
-			<Button
-				onclick={() =>
-					users.update((users) => [...users, { name: '', scriptPrefix: '', format: '' }])}
-				class="w-full">Add New User</Button
-			>
-		</Collapsible.Content>
-	</Collapsible.Root>
+	<div class="text-center mb-8">
+		<h1 class="text-4xl font-bold text-gray-800 mb-2">Scoreboard Sigma</h1>
+		<p class="text-gray-600">Minecraft Java Edition Command Generator</p>
+	</div>
 
 	<section class="mb-8 rounded-lg border p-6 shadow-md">
 		<h2 class="mb-4 text-2xl font-semibold">Commands</h2>
@@ -277,30 +240,124 @@
 		</div>
 	</section>
 
-	<section class="mb-8 rounded-lg border p-6 shadow-md">
-		<h2 class="mb-4 text-2xl font-semibold">Generated Script</h2>
-		<Textarea bind:value={$finalScript} class="mb-4 min-h-[10em]" readonly />
-		<div class="flex gap-2">
-			<Button onclick={generateCommands} class="flex-1">Generate Script</Button>
-			<Button onclick={runPreview} class="flex-1">Run Preview</Button>
-		</div>
-	</section>
+	<Dialog.Root bind:open={$importDialogOpen}>
+		<Dialog.Content class="max-w-4xl">
+			<Dialog.Header>
+				<Dialog.Title>Import Scripts</Dialog.Title>
+			</Dialog.Header>
+			<div class="space-y-6">
+				<section class="rounded-lg border p-4">
+					<h3 class="mb-4 text-xl font-semibold">Import dialogues script</h3>
+					<Textarea
+						bind:value={$rawScript}
+						class="mb-4 min-h-[10em]"
+						placeholder="Paste your raw script here..."
+					/>
+					<Button onclick={parseCommandsOnClick} class="w-full">Import Commands</Button>
+				</section>
+
+				<section class="rounded-lg border p-4">
+					<h3 class="mb-4 text-xl font-semibold">Import mcfunction script</h3>
+					<Textarea
+						bind:value={$rawMcfunction}
+						class="mb-4 min-h-[10em]"
+						placeholder="Paste your raw script here..."
+					/>
+					<Button onclick={parseMcfunctionScriptOnClick} class="w-full">Import Commands</Button>
+				</section>
+			</div>
+		</Dialog.Content>
+	</Dialog.Root>
+
+	<Dialog.Root bind:open={$settingsDialogOpen}>
+		<Dialog.Content>
+			<Dialog.Header>
+				<Dialog.Title>Script Settings</Dialog.Title>
+			</Dialog.Header>
+			<div class="space-y-4">
+				<div>
+					<label for="scriptName" class="block text-sm font-medium">Script Name</label>
+					<Input id="scriptName" bind:value={$scriptSettings.name} placeholder="e.g., my_command_script" />
+				</div>
+				<div>
+					<label for="initialCounter" class="block text-sm font-medium">Initial Counter</label>
+					<Input id="initialCounter" type="number" bind:value={$scriptSettings.initialCounter} />
+				</div>
+				<div>
+					<label for="initialSpan" class="block text-sm font-medium">Initial Span</label>
+					<Input id="initialSpan" type="number" bind:value={$scriptSettings.initialSpan} />
+				</div>
+				<div>
+					<label for="characterMultiplier" class="block text-sm font-medium">Character Multiplier</label>
+					<Input id="characterMultiplier" type="number" bind:value={$scriptSettings.characterMultiplier} />
+				</div>
+				<div>
+					<label for="minimalSpan" class="block text-sm font-medium">Minimal Span</label>
+					<Input id="minimalSpan" type="number" bind:value={$scriptSettings.minimalSpan} />
+				</div>
+			</div>
+		</Dialog.Content>
+	</Dialog.Root>
+
+	<Dialog.Root bind:open={$usersDialogOpen}>
+		<Dialog.Content class="max-w-4xl">
+			<Dialog.Header>
+				<Dialog.Title>Manage Users</Dialog.Title>
+			</Dialog.Header>
+			<div class="space-y-4">
+				{#each $users as user, index}
+					<div class="flex flex-col gap-4 rounded-md border p-4 md:flex-row">
+						<div class="flex-1">
+							<label for="userName-{index}" class="block text-sm font-medium">Name</label>
+							<Input id="userName-{index}" bind:value={user.name} placeholder="Function Name" />
+						</div>
+						<div class="flex-1">
+							<label for="scriptPrefix-{index}" class="block text-sm font-medium">Script Prefix</label>
+							<Input id="scriptPrefix-{index}" bind:value={user.scriptPrefix} placeholder="e.g., W" />
+						</div>
+						<div class="flex-1">
+							<label for="format-{index}" class="block text-sm font-medium">Format</label>
+							<Input id="format-{index}" bind:value={user.format} placeholder="e.g., Wiesiek: " />
+						</div>
+					</div>
+				{/each}
+				<Button
+					onclick={() =>
+						users.update((users) => [...users, { name: '', scriptPrefix: '', format: '' }])}
+					class="w-full">Add New User</Button>
+			</div>
+		</Dialog.Content>
+	</Dialog.Root>
+
+	<Dialog.Root bind:open={$generateDialogOpen}>
+		<Dialog.Content class="max-w-4xl">
+			<Dialog.Header>
+				<Dialog.Title>Generated Script</Dialog.Title>
+			</Dialog.Header>
+			<div class="space-y-4">
+				<Textarea bind:value={$finalScript} class="min-h-[20em]" readonly />
+				<div class="flex gap-2">
+					<Button onclick={() => navigator.clipboard.writeText($finalScript)} class="flex-1">Copy to Clipboard</Button>
+				</div>
+			</div>
+		</Dialog.Content>
+	</Dialog.Root>
 
 	{#if $previewVisible}
-		<div class="fixed bottom-4 right-4 z-50 max-w-md rounded-lg border bg-black p-4 shadow-lg">
+		<div class="fixed bottom-4 right-4 z-50 max-w-md rounded-lg border bg-white p-4 shadow-lg text-black">
 			<div class="mb-2 flex items-center justify-between">
-				<h3 class="text-lg font-semibold">Preview</h3>
-				<button
-					class="text-white-700 hover:text-gray-700"
-					on:click={() => previewVisible.set(false)}
+				<h3 class="text-lg font-semibold text-gray-900">Preview</h3>
+				<Button
+					class="text-gray-500 hover:text-gray-700"
+					onclick={() => previewVisible.set(false)}
 				>
 					✕
-				</button>
+				</Button>
 			</div>
-			<div class="text-white-600 mb-2 text-sm">
+			<div class="text-gray-600 mb-2 text-sm">
 				Command {$previewIndex + 1} of {$commands.length}
 			</div>
-			<div class="bg-black-50 rounded border p-3 font-mono text-sm">
+			<div class="bg-gray-100 rounded border p-3 font-mono text-sm text-gray-900">
 				{$currentPreviewCommand || 'Waiting...'}
 			</div>
 		</div>
