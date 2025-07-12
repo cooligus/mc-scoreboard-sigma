@@ -19,7 +19,7 @@
 	import type { Command, UserFunction } from '$lib/interfaces';
 	import { scriptSettings } from '$lib/stores/settings';
 	import Fa from 'svelte-fa'
-	import { faGripLines, faTrash } from '@fortawesome/free-solid-svg-icons'
+	import { faGripLines, faTrash, faTimes } from '@fortawesome/free-solid-svg-icons'
 
 	const users = writable<UserFunction[]>([
 		{ name: 'Wiesiek', scriptPrefix: 'W', format: 'function characters:wiesiek {Line: "%s"}' }
@@ -156,8 +156,8 @@
 
 <div class="container mx-auto p-4">
 	<div class="text-center mb-8">
-		<h1 class="text-4xl font-bold text-gray-800 mb-2">Scoreboard Sigma</h1>
-		<p class="text-gray-600">Minecraft Java Edition Command Generator</p>
+		<h1 class="text-4xl font-bold mb-2">Scoreboard Sigma</h1>
+		<p class="">Minecraft Java Edition Command Generator</p>
 	</div>
 
 	<section class="mb-8 rounded-lg border p-6 shadow-md">
@@ -184,7 +184,7 @@
 						<div class="mb-2 flex gap-3 items-center justify-between">
 							<select
 								id="commandUser-{index}"
-								class="w-full h-full rounded border px-3 py-1 text-sm bg-black text-white"
+								class="w-full h-full rounded border px-3 py-1 text-sm"
 								value={command.user?.name || ''}
 								on:change={(e) => {
 									const target = e.target as HTMLSelectElement | null;
@@ -215,7 +215,7 @@
 								bind:value={command.span}
 							/>
 							<button
-								class="text-red-500 hover:text-red-700 w-6 h-6 flex items-center justify-center"
+								class="w-6 h-6 flex items-center justify-center"
 								on:click={() => removeCommand(command.id)}
 								title="Remove command"
 								aria-label="Remove command"
@@ -344,20 +344,19 @@
 	</Dialog.Root>
 
 	{#if $previewVisible}
-		<div class="fixed bottom-4 right-4 z-50 max-w-md rounded-lg border bg-white p-4 shadow-lg text-black">
+		<div class="fixed bottom-4 right-4 z-50 max-w-md rounded-lg border p-4 shadow-lg">
 			<div class="mb-2 flex items-center justify-between">
-				<h3 class="text-lg font-semibold text-gray-900">Preview</h3>
+				<h3 class="text-lg font-semibold">Preview</h3>
 				<Button
-					class="text-gray-500 hover:text-gray-700"
 					onclick={() => previewVisible.set(false)}
 				>
-					✕
+					<Fa icon={faTimes} />
 				</Button>
 			</div>
-			<div class="text-gray-600 mb-2 text-sm">
+			<div class="mb-2 text-sm">
 				Command {$previewIndex + 1} of {$commands.length}
 			</div>
-			<div class="bg-gray-100 rounded border p-3 font-mono text-sm text-gray-900">
+			<div class="rounded border p-3 font-mono text-sm">
 				{$currentPreviewCommand || 'Waiting...'}
 			</div>
 		</div>
