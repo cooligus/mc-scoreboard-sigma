@@ -344,7 +344,7 @@
 	</Dialog.Root>
 
 	{#if $previewVisible}
-		<div class="fixed bottom-4 right-4 z-50 max-w-md rounded-lg border p-4 shadow-lg">
+		<div class="fixed bottom-4 right-4 z-50 max-w-md rounded-lg border p-4 shadow-lg bg-gray-800 dark:bg-gray-900 text-white shadow-lg">
 			<div class="mb-2 flex items-center justify-between">
 				<h3 class="text-lg font-semibold">Preview</h3>
 				<Button
