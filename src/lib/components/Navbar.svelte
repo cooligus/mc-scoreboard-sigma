@@ -3,6 +3,7 @@
 	import ThemeToggle from './ThemeToggle.svelte';
 	import Fa from 'svelte-fa';
 	import { faCog, faUsers, faFileImport, faPlay, faDownload } from '@fortawesome/free-solid-svg-icons';
+	import { base } from '$app/paths';
 
 	export let onImport: () => void;
 	export let onSettings: () => void;
@@ -15,7 +16,7 @@
 	<div class="container mx-auto px-4">
 		<div class="flex items-center justify-between h-16">
 			<div class="flex items-center space-x-3">
-				<img src="/favicon.png" alt="Logo" class="w-8 h-8" />
+				<img src="{base}/favicon.png" alt="Logo" class="w-8 h-8" />
 				<span class="text-xl font-bold">Scoreboard Sigma</span>
 			</div>
 
