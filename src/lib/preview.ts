@@ -11,6 +11,7 @@ export const runPreview = (
 ) => {
 	if (commands.length === 0) return;
 
+	const spanMultiplier = 50;
 	callbacks.setPreviewVisible(true);
 	callbacks.setPreviewIndex(-1);
 	callbacks.setCurrentPreviewCommand('');
@@ -34,10 +35,10 @@ export const runPreview = (
 
 		setTimeout(() => {
 			showNextCommand(index + 1);
-		}, command.span * 50);
+		}, command.span * spanMultiplier);
 	};
 
 	setTimeout(() => {
 		showNextCommand(0);
-	}, currentSpan);
+	}, currentSpan * spanMultiplier);
 };
