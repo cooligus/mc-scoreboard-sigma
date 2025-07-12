@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  build:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -26,24 +26,42 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup Pages
         uses: actions/configure-pages@v5
+        with:
+          static_site_generator: "sveltekit"
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 'lts/*'
+
       - name: Install pnpm
         run: npm install -g pnpm
+
       - name: Install dependencies
         run: pnpm install
+        
       - name: Build project
         run: pnpm run build
         env:
-          BASE_PATH: "/dpdg/"
-      - name: Disable jekyll
-        run: touch ./dist/.nojekyll
+          BASE_PATH: "/${{github.event.repository.name}}/"
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './dist'
+          path: build
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    needs: build
+    runs-on: ubuntu-latest
+    name: Deploy
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
