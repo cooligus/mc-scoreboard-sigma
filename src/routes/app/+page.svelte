@@ -34,7 +34,12 @@
 	const generateDialogOpen = writable(false);
 
 	const parseCommandsOnClick = () => {
-		const parsedCommands = parseCommands($rawScript, $users, $scriptSettings.characterMultiplier, $scriptSettings.minimalSpan);
+		const parsedCommands = parseCommands(
+			$rawScript,
+			$users,
+			$scriptSettings.characterMultiplier,
+			$scriptSettings.minimalSpan
+		);
 		commands.set(parsedCommands);
 		importDialogOpen.set(false);
 	};
@@ -63,9 +68,9 @@
 		});
 
 		commands.set(updatedCommands);
-		scriptSettings.set({ 
-			name: scriptName, 
-			initialCounter, 
+		scriptSettings.set({
+			name: scriptName,
+			initialCounter,
 			initialSpan: initialSpan ?? 10,
 			characterMultiplier: $scriptSettings.characterMultiplier,
 			minimalSpan: $scriptSettings.minimalSpan
@@ -98,9 +103,7 @@
 	};
 
 	const increaseAllSpans = (amount: number = 20) => {
-		commands.update((commands) =>
-			commands.map((cmd) => ({ ...cmd, span: cmd.span + amount }))
-		);
+		commands.update((commands) => commands.map((cmd) => ({ ...cmd, span: cmd.span + amount })));
 	};
 
 	const decreaseAllSpans = (amount: number = 20) => {
@@ -144,7 +147,7 @@
 	};
 </script>
 
-<Navbar 
+<Navbar
 	onImport={handleImport}
 	onSettings={handleSettings}
 	onUsers={handleUsers}
@@ -153,8 +156,8 @@
 />
 
 <div class="container mx-auto p-4">
-	<div class="text-center mb-8">
-		<h1 class="text-4xl font-bold mb-2">MCJ Wyniki</h1>
+	<div class="mb-8 text-center">
+		<h1 class="mb-2 text-4xl font-bold">MCJ Wyniki</h1>
 		<p class="">Minecraft Java Edition Dialogue Generator</p>
 	</div>
 
@@ -176,13 +179,13 @@
 			{#each $commands as command, index (command.id)}
 				<div class="mb-4 flex items-center rounded-md border p-4">
 					<span class="handle mr-4 cursor-grab">
-						<GripVertical class="w-4 h-4" />
+						<GripVertical class="h-4 w-4" />
 					</span>
 					<div class="flex-1">
-						<div class="mb-2 flex gap-3 items-center justify-between">
+						<div class="mb-2 flex items-center justify-between gap-3">
 							<select
 								id="commandUser-{index}"
-								class="w-full h-full rounded border px-3 py-1 text-sm"
+								class="h-full w-full rounded border px-3 py-1 text-sm"
 								value={command.user?.name || ''}
 								on:change={(e) => {
 									const target = e.target as HTMLSelectElement | null;
@@ -213,12 +216,12 @@
 								bind:value={command.span}
 							/>
 							<button
-								class="w-6 h-6 flex items-center justify-center"
+								class="flex h-6 w-6 items-center justify-center"
 								on:click={() => removeCommand(command.id)}
 								title="Remove command"
 								aria-label="Remove command"
 							>
-								<Trash2 class="w-4 h-4" />
+								<Trash2 class="h-4 w-4" />
 							</button>
 						</div>
 						<Textarea
@@ -275,7 +278,11 @@
 			<div class="space-y-4">
 				<div>
 					<label for="scriptName" class="block text-sm font-medium">Script Name</label>
-					<Input id="scriptName" bind:value={$scriptSettings.name} placeholder="e.g., my_command_script" />
+					<Input
+						id="scriptName"
+						bind:value={$scriptSettings.name}
+						placeholder="e.g., my_command_script"
+					/>
 				</div>
 				<div>
 					<label for="initialCounter" class="block text-sm font-medium">Initial Counter</label>
@@ -286,8 +293,14 @@
 					<Input id="initialSpan" type="number" bind:value={$scriptSettings.initialSpan} />
 				</div>
 				<div>
-					<label for="characterMultiplier" class="block text-sm font-medium">Character Multiplier</label>
-					<Input id="characterMultiplier" type="number" bind:value={$scriptSettings.characterMultiplier} />
+					<label for="characterMultiplier" class="block text-sm font-medium"
+						>Character Multiplier</label
+					>
+					<Input
+						id="characterMultiplier"
+						type="number"
+						bind:value={$scriptSettings.characterMultiplier}
+					/>
 				</div>
 				<div>
 					<label for="minimalSpan" class="block text-sm font-medium">Minimal Span</label>
@@ -310,8 +323,14 @@
 							<Input id="userName-{index}" bind:value={user.name} placeholder="Function Name" />
 						</div>
 						<div class="flex-1">
-							<label for="scriptPrefix-{index}" class="block text-sm font-medium">Script Prefix</label>
-							<Input id="scriptPrefix-{index}" bind:value={user.scriptPrefix} placeholder="e.g., W" />
+							<label for="scriptPrefix-{index}" class="block text-sm font-medium"
+								>Script Prefix</label
+							>
+							<Input
+								id="scriptPrefix-{index}"
+								bind:value={user.scriptPrefix}
+								placeholder="e.g., W"
+							/>
 						</div>
 						<div class="flex-1">
 							<label for="format-{index}" class="block text-sm font-medium">Format</label>
@@ -322,7 +341,8 @@
 				<Button
 					onclick={() =>
 						users.update((users) => [...users, { name: '', scriptPrefix: '', format: '' }])}
-					class="w-full">Add New User</Button>
+					class="w-full">Add New User</Button
+				>
 			</div>
 		</Dialog.Content>
 	</Dialog.Root>
@@ -335,20 +355,22 @@
 			<div class="space-y-4">
 				<Textarea bind:value={$finalScript} class="min-h-[20em]" readonly />
 				<div class="flex gap-2">
-					<Button onclick={() => navigator.clipboard.writeText($finalScript)} class="flex-1">Copy to Clipboard</Button>
+					<Button onclick={() => navigator.clipboard.writeText($finalScript)} class="flex-1"
+						>Copy to Clipboard</Button
+					>
 				</div>
 			</div>
 		</Dialog.Content>
 	</Dialog.Root>
 
 	{#if $previewVisible}
-		<div class="fixed bottom-4 right-4 z-50 max-w-md rounded-lg border p-4 shadow-lg bg-gray-800 dark:bg-gray-900 text-white shadow-lg">
+		<div
+			class="fixed bottom-4 right-4 z-50 max-w-md rounded-lg border bg-gray-800 p-4 text-white shadow-lg shadow-lg dark:bg-gray-900"
+		>
 			<div class="mb-2 flex items-center justify-between">
 				<h3 class="text-lg font-semibold">Preview</h3>
-				<Button
-					onclick={() => previewVisible.set(false)}
-				>
-					<X class="w-4 h-4" />
+				<Button onclick={() => previewVisible.set(false)}>
+					<X class="h-4 w-4" />
 				</Button>
 			</div>
 			<div class="mb-2 text-sm">
