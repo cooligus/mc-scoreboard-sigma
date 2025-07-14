@@ -17,8 +17,7 @@
 	import { runPreview as runPreviewUtil } from '$lib/preview';
 	import type { Command, UserFunction } from '$lib/interfaces';
 	import { scriptSettings } from '$lib/stores/settings';
-	import Fa from 'svelte-fa'
-	import { faGripLines, faTrash, faTimes } from '@fortawesome/free-solid-svg-icons'
+	import { GripVertical, Trash2, X } from 'lucide-svelte';
 
 	const users = writable<UserFunction[]>([
 		{ name: 'Wiesiek', scriptPrefix: 'W', format: 'function characters:wiesiek {Line: "%s"}' }
@@ -177,7 +176,7 @@
 			{#each $commands as command, index (command.id)}
 				<div class="mb-4 flex items-center rounded-md border p-4">
 					<span class="handle mr-4 cursor-grab">
-						<Fa icon={faGripLines} />
+						<GripVertical class="w-4 h-4" />
 					</span>
 					<div class="flex-1">
 						<div class="mb-2 flex gap-3 items-center justify-between">
@@ -219,7 +218,7 @@
 								title="Remove command"
 								aria-label="Remove command"
 							>
-								<Fa icon={faTrash} />
+								<Trash2 class="w-4 h-4" />
 							</button>
 						</div>
 						<Textarea
@@ -349,7 +348,7 @@
 				<Button
 					onclick={() => previewVisible.set(false)}
 				>
-					<Fa icon={faTimes} />
+					<X class="w-4 h-4" />
 				</Button>
 			</div>
 			<div class="mb-2 text-sm">
