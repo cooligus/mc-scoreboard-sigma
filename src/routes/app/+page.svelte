@@ -154,8 +154,8 @@
 
 <div class="container mx-auto p-4">
 	<div class="text-center mb-8">
-		<h1 class="text-4xl font-bold mb-2">Scoreboard Sigma</h1>
-		<p class="">Minecraft Java Edition Command Generator</p>
+		<h1 class="text-4xl font-bold mb-2">MCJ Wyniki</h1>
+		<p class="">Minecraft Java Edition Dialogue Generator</p>
 	</div>
 
 	<section class="mb-8 rounded-lg border p-6 shadow-md">
