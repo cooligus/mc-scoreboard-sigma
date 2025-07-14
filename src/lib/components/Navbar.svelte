@@ -19,30 +19,24 @@
 			</div>
 
 			<div class="flex items-center space-x-2">
-				<Button onclick={onImport} class="flex items-center space-x-2">
-					<FileUp class="h-4 w-4" />
+				<Button onclick={onImport}>
+					<FileUp />
 					<span>Import</span>
 				</Button>
-				<Button onclick={onSettings} class="flex items-center space-x-2">
-					<Settings class="h-4 w-4" />
+				<Button onclick={onSettings}>
+					<Settings />
 					<span>Settings</span>
 				</Button>
-				<Button onclick={onUsers} class="flex items-center space-x-2">
-					<Users class="h-4 w-4" />
+				<Button onclick={onUsers}>
+					<Users />
 					<span>Users</span>
 				</Button>
-				<Button
-					onclick={onPreview}
-					class="flex items-center space-x-2 bg-blue-600 text-white hover:bg-blue-700"
-				>
-					<Play class="h-4 w-4" />
+				<Button onclick={onPreview} class="bg-blue-600 text-white hover:bg-blue-700">
+					<Play />
 					<span>Preview</span>
 				</Button>
-				<Button
-					onclick={onExport}
-					class="flex items-center space-x-2 bg-green-600 text-white hover:bg-green-700"
-				>
-					<FileDown class="h-4 w-4" />
+				<Button onclick={onExport} class="bg-green-600 text-white hover:bg-green-700">
+					<FileDown />
 					<span>Export</span>
 				</Button>
 				<ThemeToggle />

@@ -18,6 +18,7 @@
 	import type { Command, UserFunction } from '$lib/interfaces';
 	import { scriptSettings } from '$lib/stores/settings';
 	import { GripVertical, Trash2, X } from 'lucide-svelte';
+	import * as Select from '$lib/components/ui/select';
 
 	const users = writable<UserFunction[]>([
 		{ name: 'Wiesiek', scriptPrefix: 'W', format: 'function characters:wiesiek {Line: "%s"}' }
@@ -39,7 +40,10 @@
 			$users,
 			$scriptSettings.characterMultiplier,
 			$scriptSettings.minimalSpan
-		);
+		).map((cmd) => ({
+			...cmd,
+			userName: cmd.user?.name || ''
+		}));
 		commands.set(parsedCommands);
 		importDialogOpen.set(false);
 	};
@@ -64,7 +68,12 @@
 					break;
 				}
 			}
-			return { ...command, user: matchedUser, content: matchedContent };
+			return {
+				...command,
+				user: matchedUser,
+				userName: matchedUser?.name || '',
+				content: matchedContent
+			};
 		});
 
 		commands.set(updatedCommands);
@@ -80,11 +89,10 @@
 
 	const addCommand = (userName: string) => {
 		const user = getUserFromUsername(userName, $users);
-		if (!user) {
-			console.error(`User ${userName} not found`);
-			return;
-		}
-		commands.update((commands) => [...commands, { id: uuid(), user, span: 0, content: '' }]);
+		commands.update((commands) => [
+			...commands,
+			{ id: uuid(), user, userName: user?.name || '', span: 0, content: '' }
+		]);
 	};
 
 	const removeCommand = (commandId: string) => {
@@ -92,13 +100,8 @@
 	};
 
 	const changeCommandUser = (commandId: string, userName: string) => {
-		const user = getUserFromUsername(userName, $users);
-		if (!user) {
-			console.error(`User ${userName} not found`);
-			return;
-		}
 		commands.update((commands) =>
-			commands.map((cmd) => (cmd.id === commandId ? { ...cmd, user } : cmd))
+			commands.map((cmd) => (cmd.id === commandId ? { ...cmd, userName } : cmd))
 		);
 	};
 
@@ -145,6 +148,14 @@
 		generateCommands();
 		generateDialogOpen.set(true);
 	};
+
+	$: {
+		$commands.forEach((cmd) => {
+			if (cmd.userName !== (cmd.user?.name || '')) {
+				cmd.user = getUserFromUsername(cmd.userName || '', $users) || undefined;
+			}
+		});
+	}
 </script>
 
 <Navbar
@@ -183,20 +194,15 @@
 					</span>
 					<div class="flex-1">
 						<div class="mb-2 flex items-center justify-between gap-3">
-							<select
-								id="commandUser-{index}"
-								class="h-full w-full rounded border px-3 py-1 text-sm"
-								value={command.user?.name || ''}
-								on:change={(e) => {
-									const target = e.target as HTMLSelectElement | null;
-									if (target) changeCommandUser(command.id, target.value);
-								}}
-							>
-								<option value="">No user</option>
-								{#each $users as user}
-									<option value={user.name}>{user.name}</option>
-								{/each}
-							</select>
+							<Select.Root type="single" bind:value={command.userName}>
+								<Select.Trigger>{command.userName || 'No user'}</Select.Trigger>
+								<Select.Content>
+									<Select.Item value="">No user</Select.Item>
+									{#each $users as user}
+										<Select.Item value={user.name}>{user.name}</Select.Item>
+									{/each}
+								</Select.Content>
+							</Select.Root>
 							<label for="commandSpanMultiplier-{index}" class="block text-xs">seconds:</label>
 							<Input
 								id="commandSpanMultiplier-{index}"
