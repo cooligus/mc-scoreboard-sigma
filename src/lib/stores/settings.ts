@@ -20,9 +20,9 @@ const defaultSettings: ScriptSettings = {
 function createScriptSettingsStore() {
 	const stored = browser ? localStorage.getItem('dpdg-script-settings') : null;
 	const initial = stored ? { ...defaultSettings, ...JSON.parse(stored) } : defaultSettings;
-	
+
 	const { subscribe, set, update } = writable<ScriptSettings>(initial);
-	
+
 	return {
 		subscribe,
 		set: (settings: ScriptSettings) => {
@@ -30,7 +30,7 @@ function createScriptSettingsStore() {
 			set(settings);
 		},
 		update: (fn: (settings: ScriptSettings) => ScriptSettings) => {
-			update(settings => {
+			update((settings) => {
 				const newSettings = fn(settings);
 				if (browser) localStorage.setItem('dpdg-script-settings', JSON.stringify(newSettings));
 				return newSettings;
@@ -43,4 +43,4 @@ function createScriptSettingsStore() {
 	};
 }
 
-export const scriptSettings = createScriptSettingsStore(); 
+export const scriptSettings = createScriptSettingsStore();

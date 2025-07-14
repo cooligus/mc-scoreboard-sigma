@@ -122,7 +122,12 @@ export const getSpanFromLine = (line: string, characterMultiplier: number, minim
 	return finalSpan;
 };
 
-export const parseCommands = (commandString: string, users: UserFunction[], characterMultiplier: number, minimalSpan: number) => {
+export const parseCommands = (
+	commandString: string,
+	users: UserFunction[],
+	characterMultiplier: number,
+	minimalSpan: number
+) => {
 	const commandLines = commandString.split('\n');
 	const commands: Command[] = [];
 

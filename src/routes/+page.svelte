@@ -1,364 +1,306 @@
-<script lang="ts">
-	import Button from '$lib/components/ui/button/button.svelte';
-	import Input from '$lib/components/ui/input/input.svelte';
-	import Textarea from '$lib/components/ui/textarea/textarea.svelte';
-	import Navbar from '$lib/components/Navbar.svelte';
-	import * as Dialog from '$lib/components/ui/dialog';
-	import { Collapsible } from 'bits-ui';
-	import { writable } from 'svelte/store';
-	import { dndzone } from 'svelte-dnd-action';
-	import { v4 as uuid } from 'uuid';
-	import {
-		parseMcfunctionScript,
-		parseCommands,
-		getUserFromUsername,
-		generateCommands as generateCommandsUtil,
-		escapeRegexSpecialChars
-	} from '$lib/parsers';
-	import { runPreview as runPreviewUtil } from '$lib/preview';
-	import type { Command, UserFunction } from '$lib/interfaces';
-	import { scriptSettings } from '$lib/stores/settings';
-	import Fa from 'svelte-fa'
-	import { faGripLines, faTrash, faTimes } from '@fortawesome/free-solid-svg-icons'
-
-	const users = writable<UserFunction[]>([
-		{ name: 'Wiesiek', scriptPrefix: 'W', format: 'function characters:wiesiek {Line: "%s"}' }
-	]);
-
-	const commands = writable<Command[]>([]);
-	const finalScript = writable<string>('');
-	const rawScript = writable<string>('');
-	const rawMcfunction = writable<string>('');
-
-	const importDialogOpen = writable(false);
-	const settingsDialogOpen = writable(false);
-	const usersDialogOpen = writable(false);
-	const generateDialogOpen = writable(false);
-
-	const parseCommandsOnClick = () => {
-		const parsedCommands = parseCommands($rawScript, $users, $scriptSettings.characterMultiplier, $scriptSettings.minimalSpan);
-		commands.set(parsedCommands);
-		importDialogOpen.set(false);
-	};
-
-	const parseMcfunctionScriptOnClick = () => {
-		const {
-			scriptName,
-			initialCounter,
-			commands: parsedCommands,
-			initialSpan
-		} = parseMcfunctionScript($rawMcfunction);
-
-		const updatedCommands = parsedCommands.map((command) => {
-			let matchedUser: UserFunction | undefined = undefined;
-			let matchedContent = command.content;
-			for (const user of $users as UserFunction[]) {
-				const formatRegex = escapeRegexSpecialChars(user.format).replace(/%s/, '(.+)');
-				const match = matchedContent.match(new RegExp(`^${formatRegex}$`));
-				if (match) {
-					matchedUser = user;
-					matchedContent = match[1];
-					break;
-				}
-			}
-			return { ...command, user: matchedUser, content: matchedContent };
-		});
-
-		commands.set(updatedCommands);
-		scriptSettings.set({ 
-			name: scriptName, 
-			initialCounter, 
-			initialSpan: initialSpan ?? 10,
-			characterMultiplier: $scriptSettings.characterMultiplier,
-			minimalSpan: $scriptSettings.minimalSpan
-		});
-		importDialogOpen.set(false);
-	};
-
-	const addCommand = (userName: string) => {
-		const user = getUserFromUsername(userName, $users);
-		if (!user) {
-			console.error(`User ${userName} not found`);
-			return;
-		}
-		commands.update((commands) => [...commands, { id: uuid(), user, span: 0, content: '' }]);
-	};
-
-	const removeCommand = (commandId: string) => {
-		commands.update((commands) => commands.filter((cmd) => cmd.id !== commandId));
-	};
-
-	const changeCommandUser = (commandId: string, userName: string) => {
-		const user = getUserFromUsername(userName, $users);
-		if (!user) {
-			console.error(`User ${userName} not found`);
-			return;
-		}
-		commands.update((commands) =>
-			commands.map((cmd) => (cmd.id === commandId ? { ...cmd, user } : cmd))
-		);
-	};
-
-	const increaseAllSpans = (amount: number = 20) => {
-		commands.update((commands) =>
-			commands.map((cmd) => ({ ...cmd, span: cmd.span + amount }))
-		);
-	};
-
-	const decreaseAllSpans = (amount: number = 20) => {
-		commands.update((commands) =>
-			commands.map((cmd) => ({ ...cmd, span: Math.max(0, cmd.span - amount) }))
-		);
-	};
-
-	const generateCommands = () => {
-		const wholeScriptContent = generateCommandsUtil($commands, $scriptSettings);
-		finalScript.set(wholeScriptContent);
-	};
-
-	const previewVisible = writable<boolean>(false);
-	const currentPreviewCommand = writable<string>('');
-	const previewIndex = writable<number>(-1);
-
-	const runPreview = () => {
-		runPreviewUtil($commands, $scriptSettings, {
-			setPreviewVisible: (visible) => {
-				previewVisible.set(visible);
-			},
-			setPreviewIndex: (index) => {
-				previewIndex.set(index);
-			},
-			setCurrentPreviewCommand: (command) => {
-				currentPreviewCommand.set(command);
-			}
-		});
-	};
-
-	const handleImport = () => importDialogOpen.set(true);
-	const handleSettings = () => settingsDialogOpen.set(true);
-	const handleUsers = () => usersDialogOpen.set(true);
-	const handlePreview = () => {
-		runPreview();
-	};
-	const handleExport = () => {
-		generateCommands();
-		generateDialogOpen.set(true);
-	};
+<script>
+	import { ArrowRight, Code, Zap, Shield, Users, FileText, Download, Play } from 'lucide-svelte';
+	import { base } from '$app/paths';
 </script>
 
-<Navbar 
-	onImport={handleImport}
-	onSettings={handleSettings}
-	onUsers={handleUsers}
-	onPreview={handlePreview}
-	onExport={handleExport}
-/>
-
-<div class="container mx-auto p-4">
-	<div class="text-center mb-8">
-		<h1 class="text-4xl font-bold mb-2">Scoreboard Sigma</h1>
-		<p class="">Minecraft Java Edition Command Generator</p>
-	</div>
-
-	<section class="mb-8 rounded-lg border p-6 shadow-md">
-		<h2 class="mb-4 text-2xl font-semibold">Commands</h2>
-		<div class="mb-4 flex gap-2">
-			<Button onclick={() => increaseAllSpans(5)} class="flex-1">+5 All Spans</Button>
-			<Button onclick={() => decreaseAllSpans(5)} class="flex-1">-5 All Spans</Button>
-		</div>
-		<div
-			use:dndzone={{ items: $commands, flipDurationMs: 50 }}
-			on:consider={(e) => {
-				commands.set(e.detail.items);
-			}}
-			on:finalize={(e) => {
-				commands.set(e.detail.items);
-			}}
-		>
-			{#each $commands as command, index (command.id)}
-				<div class="mb-4 flex items-center rounded-md border p-4">
-					<span class="handle mr-4 cursor-grab">
-						<Fa icon={faGripLines} />
-					</span>
-					<div class="flex-1">
-						<div class="mb-2 flex gap-3 items-center justify-between">
-							<select
-								id="commandUser-{index}"
-								class="w-full h-full rounded border px-3 py-1 text-sm"
-								value={command.user?.name || ''}
-								on:change={(e) => {
-									const target = e.target as HTMLSelectElement | null;
-									if (target) changeCommandUser(command.id, target.value);
-								}}
-							>
-								<option value="">No user</option>
-								{#each $users as user}
-									<option value={user.name}>{user.name}</option>
-								{/each}
-							</select>
-							<label for="commandSpanMultiplier-{index}" class="block text-xs">seconds:</label>
-							<Input
-								id="commandSpanMultiplier-{index}"
-								type="number"
-								class="w-20"
-								value={command.span / 20}
-								on:input={(e) => {
-									const target = e.target as HTMLInputElement | null;
-									if (target) command.span = Number(target.value) * 20;
-								}}
-							/>
-							<label for="commandSpan-{index}" class="block text-xs">ticks:</label>
-							<Input
-								id="commandSpan-{index}"
-								type="number"
-								class="w-20"
-								bind:value={command.span}
-							/>
-							<button
-								class="w-6 h-6 flex items-center justify-center"
-								on:click={() => removeCommand(command.id)}
-								title="Remove command"
-								aria-label="Remove command"
-							>
-								<Fa icon={faTrash} />
-							</button>
-						</div>
-						<Textarea
-							id="commandContent-{index}"
-							bind:value={command.content}
-							class="mb-2 min-h-[3em]"
-						/>
-					</div>
+<div
+	class="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-gray-900 dark:via-gray-950 dark:to-gray-900"
+>
+	<!-- Navigation -->
+	<nav
+		class="sticky top-0 z-40 border-b border-green-100 bg-white/80 backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/80"
+	>
+		<div class="container mx-auto px-4 py-4">
+			<div class="flex items-center justify-between">
+				<img src="{base}/favicon.svg" alt="Logo" class="w-24" />
+				<div class="flex items-center space-x-4">
+					<a
+						href="#features"
+						class="text-gray-600 transition-colors hover:text-green-600 dark:text-gray-300 dark:hover:text-green-400"
+						>Features</a
+					>
+					<a
+						href="#how-it-works"
+						class="text-gray-600 transition-colors hover:text-green-600 dark:text-gray-300 dark:hover:text-green-400"
+						>How it Works</a
+					>
+					<a
+						class="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-white transition-colors hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600"
+						href="/app"
+					>
+						Get Started
+						<ArrowRight class="h-4 w-4" />
+					</a>
 				</div>
-			{/each}
+			</div>
 		</div>
+	</nav>
 
-		<div class="mt-4 flex flex-wrap gap-2">
-			{#each $users as user}
-				<Button onclick={() => addCommand(user.name)}>+ {user.name}</Button>
-			{/each}
+	<!-- Hero Section -->
+	<section class="px-4 py-20">
+		<div class="container mx-auto text-center">
+			<div class="mx-auto max-w-4xl">
+				<h1 class="mb-6 text-5xl font-bold text-gray-900 dark:text-white md:text-6xl">
+					Create Minecraft
+					<span class="text-green-600 dark:text-green-400">Dialogue Scripts</span>
+					with Ease
+				</h1>
+				<p class="mb-8 text-xl leading-relaxed text-gray-600 dark:text-gray-300">
+					Transform your plain text conversations into professional mcfunction scripts for Minecraft
+					Java Edition datapacks.
+				</p>
+				<div class="flex flex-col justify-center gap-4 sm:flex-row">
+					<a
+						href="/app"
+						class="flex items-center justify-center gap-2 rounded-lg bg-green-600 px-8 py-4 text-lg font-semibold text-white transition-colors hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600"
+					>
+						<Play class="h-5 w-5" />
+						Start Creating
+					</a>
+				</div>
+			</div>
 		</div>
 	</section>
 
-	<Dialog.Root bind:open={$importDialogOpen}>
-		<Dialog.Content class="max-w-4xl">
-			<Dialog.Header>
-				<Dialog.Title>Import Scripts</Dialog.Title>
-			</Dialog.Header>
-			<div class="space-y-6">
-				<section class="rounded-lg border p-4">
-					<h3 class="mb-4 text-xl font-semibold">Import dialogues script</h3>
-					<Textarea
-						bind:value={$rawScript}
-						class="mb-4 min-h-[10em]"
-						placeholder="Paste your raw script here..."
-					/>
-					<Button onclick={parseCommandsOnClick} class="w-full">Import Commands</Button>
-				</section>
-
-				<section class="rounded-lg border p-4">
-					<h3 class="mb-4 text-xl font-semibold">Import mcfunction script</h3>
-					<Textarea
-						bind:value={$rawMcfunction}
-						class="mb-4 min-h-[10em]"
-						placeholder="Paste your raw script here..."
-					/>
-					<Button onclick={parseMcfunctionScriptOnClick} class="w-full">Import Commands</Button>
-				</section>
-			</div>
-		</Dialog.Content>
-	</Dialog.Root>
-
-	<Dialog.Root bind:open={$settingsDialogOpen}>
-		<Dialog.Content>
-			<Dialog.Header>
-				<Dialog.Title>Script Settings</Dialog.Title>
-			</Dialog.Header>
-			<div class="space-y-4">
-				<div>
-					<label for="scriptName" class="block text-sm font-medium">Script Name</label>
-					<Input id="scriptName" bind:value={$scriptSettings.name} placeholder="e.g., my_command_script" />
-				</div>
-				<div>
-					<label for="initialCounter" class="block text-sm font-medium">Initial Counter</label>
-					<Input id="initialCounter" type="number" bind:value={$scriptSettings.initialCounter} />
-				</div>
-				<div>
-					<label for="initialSpan" class="block text-sm font-medium">Initial Span</label>
-					<Input id="initialSpan" type="number" bind:value={$scriptSettings.initialSpan} />
-				</div>
-				<div>
-					<label for="characterMultiplier" class="block text-sm font-medium">Character Multiplier</label>
-					<Input id="characterMultiplier" type="number" bind:value={$scriptSettings.characterMultiplier} />
-				</div>
-				<div>
-					<label for="minimalSpan" class="block text-sm font-medium">Minimal Span</label>
-					<Input id="minimalSpan" type="number" bind:value={$scriptSettings.minimalSpan} />
-				</div>
-			</div>
-		</Dialog.Content>
-	</Dialog.Root>
-
-	<Dialog.Root bind:open={$usersDialogOpen}>
-		<Dialog.Content class="max-w-4xl">
-			<Dialog.Header>
-				<Dialog.Title>Manage Users</Dialog.Title>
-			</Dialog.Header>
-			<div class="space-y-4">
-				{#each $users as user, index}
-					<div class="flex flex-col gap-4 rounded-md border p-4 md:flex-row">
-						<div class="flex-1">
-							<label for="userName-{index}" class="block text-sm font-medium">Name</label>
-							<Input id="userName-{index}" bind:value={user.name} placeholder="Function Name" />
-						</div>
-						<div class="flex-1">
-							<label for="scriptPrefix-{index}" class="block text-sm font-medium">Script Prefix</label>
-							<Input id="scriptPrefix-{index}" bind:value={user.scriptPrefix} placeholder="e.g., W" />
-						</div>
-						<div class="flex-1">
-							<label for="format-{index}" class="block text-sm font-medium">Format</label>
-							<Input id="format-{index}" bind:value={user.format} placeholder="e.g., Wiesiek: " />
+	<!-- Example Section -->
+	<section class="bg-white/50 px-4 py-16 dark:bg-gray-900/60">
+		<div class="container mx-auto">
+			<div class="mx-auto max-w-6xl">
+				<h2 class="mb-12 text-center text-3xl font-bold text-gray-900 dark:text-white">
+					From Simple Text to Minecraft Code
+				</h2>
+				<div class="grid items-center gap-8 md:grid-cols-2">
+					<div>
+						<h3 class="mb-4 text-xl font-semibold text-gray-800 dark:text-gray-100">
+							Write Simple Dialogue
+						</h3>
+						<div class="rounded-lg bg-gray-900 p-6 font-mono text-sm text-green-400">
+							<div class="text-gray-500 dark:text-gray-400"># Plain text format</div>
+							<div>J: what's up?</div>
+							<div>Jo: Idk</div>
+							<div>J: kk</div>
 						</div>
 					</div>
-				{/each}
-				<Button
-					onclick={() =>
-						users.update((users) => [...users, { name: '', scriptPrefix: '', format: '' }])}
-					class="w-full">Add New User</Button>
-			</div>
-		</Dialog.Content>
-	</Dialog.Root>
-
-	<Dialog.Root bind:open={$generateDialogOpen}>
-		<Dialog.Content class="max-w-4xl">
-			<Dialog.Header>
-				<Dialog.Title>Generated Script</Dialog.Title>
-			</Dialog.Header>
-			<div class="space-y-4">
-				<Textarea bind:value={$finalScript} class="min-h-[20em]" readonly />
-				<div class="flex gap-2">
-					<Button onclick={() => navigator.clipboard.writeText($finalScript)} class="flex-1">Copy to Clipboard</Button>
+					<div>
+						<h3 class="mb-4 text-xl font-semibold text-gray-800 dark:text-gray-100">
+							Get Professional McFunction
+						</h3>
+						<div class="rounded-lg bg-gray-900 p-6 font-mono text-sm text-green-400">
+							<div class="text-gray-500 dark:text-gray-400"># mcfunction format</div>
+							<div>scoreboard players add @s dialogue 1</div>
+							<div>
+								execute if score @s dialogue matches 0 run function characters:josh {`{Line: "what's up?"}`}
+							</div>
+							<div>
+								execute if score @s dialogue matches 1 run function characters:john {`{Line: "Idk"}`}
+							</div>
+							<div>
+								execute if score @s dialogue matches 2 run function characters:josh {`{Line: "kk"}`}
+							</div>
+							<div>
+								execute if score @s dialogue matches 3.. run scoreboard players set @s dialogue -1
+							</div>
+						</div>
+					</div>
 				</div>
 			</div>
-		</Dialog.Content>
-	</Dialog.Root>
+		</div>
+	</section>
 
-	{#if $previewVisible}
-		<div class="fixed bottom-4 right-4 z-50 max-w-md rounded-lg border p-4 shadow-lg bg-gray-800 dark:bg-gray-900 text-white shadow-lg">
-			<div class="mb-2 flex items-center justify-between">
-				<h3 class="text-lg font-semibold">Preview</h3>
-				<Button
-					onclick={() => previewVisible.set(false)}
-				>
-					<Fa icon={faTimes} />
-				</Button>
-			</div>
-			<div class="mb-2 text-sm">
-				Command {$previewIndex + 1} of {$commands.length}
-			</div>
-			<div class="rounded border p-3 font-mono text-sm">
-				{$currentPreviewCommand || 'Waiting...'}
+	<!-- Features Section -->
+	<section id="features" class="px-4 py-20">
+		<div class="container mx-auto">
+			<div class="mx-auto max-w-6xl">
+				<h2 class="mb-16 text-center text-4xl font-bold text-gray-900 dark:text-white">
+					Powerful Features
+				</h2>
+				<div class="grid gap-8 md:grid-cols-3">
+					<div class="p-6 text-center">
+						<div
+							class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900"
+						>
+							<Users class="h-8 w-8 text-green-600 dark:text-green-400" />
+						</div>
+						<h3 class="mb-3 text-xl font-semibold text-gray-800 dark:text-gray-100">
+							User Management
+						</h3>
+						<p class="text-gray-600 dark:text-gray-300">
+							Create and manage characters with custom names and prefixes for easy dialogue
+							recognition.
+						</p>
+					</div>
+					<div class="p-6 text-center">
+						<div
+							class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900"
+						>
+							<Code class="h-8 w-8 text-blue-600 dark:text-blue-400" />
+						</div>
+						<h3 class="mb-3 text-xl font-semibold text-gray-800 dark:text-gray-100">
+							Dual Import Modes
+						</h3>
+						<p class="text-gray-600 dark:text-gray-300">
+							Import from simple plain text or existing mcfunction code. We handle the conversion
+							automatically.
+						</p>
+					</div>
+					<div class="p-6 text-center">
+						<div
+							class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900"
+						>
+							<Zap class="h-8 w-8 text-purple-600 dark:text-purple-400" />
+						</div>
+						<h3 class="mb-3 text-xl font-semibold text-gray-800 dark:text-gray-100">
+							Live Preview
+						</h3>
+						<p class="text-gray-600 dark:text-gray-300">
+							See how your dialogue will look in-game with our interactive preview mode.
+						</p>
+					</div>
+					<div class="p-6 text-center">
+						<div
+							class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-900"
+						>
+							<FileText class="h-8 w-8 text-red-600 dark:text-red-400" />
+						</div>
+						<h3 class="mb-3 text-xl font-semibold text-gray-800 dark:text-gray-100">
+							Swappable lines
+						</h3>
+						<p class="text-gray-600 dark:text-gray-300">
+							This graphical editor allows you to swap lines between characters.
+						</p>
+					</div>
+					<div class="p-6 text-center">
+						<div
+							class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-yellow-100 dark:bg-yellow-900"
+						>
+							<Download class="h-8 w-8 text-yellow-600 dark:text-yellow-400" />
+						</div>
+						<h3 class="mb-3 text-xl font-semibold text-gray-800 dark:text-gray-100">Easy Export</h3>
+						<p class="text-gray-600 dark:text-gray-300">
+							Copy your scripts in mcfunction formatready for your Minecraft datapacks.
+						</p>
+					</div>
+					<div class="p-6 text-center">
+						<div
+							class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900"
+						>
+							<Shield class="h-8 w-8 text-indigo-600 dark:text-indigo-400" />
+						</div>
+						<h3 class="mb-3 text-xl font-semibold text-gray-800 dark:text-gray-100">
+							No Installation
+						</h3>
+						<p class="text-gray-600 dark:text-gray-300">
+							Works entirely in your browser. No downloads, no setup, just start creating!
+						</p>
+					</div>
+				</div>
 			</div>
 		</div>
-	{/if}
+	</section>
+
+	<!-- How It Works Section -->
+	<section id="how-it-works" class="bg-white/50 px-4 py-20 dark:bg-gray-900/60">
+		<div class="container mx-auto">
+			<div class="mx-auto max-w-4xl">
+				<h2 class="mb-16 text-center text-4xl font-bold text-gray-900 dark:text-white">
+					How It Works
+				</h2>
+				<div class="space-y-12">
+					<div class="flex items-center gap-8">
+						<div
+							class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-green-600 text-xl font-bold text-white dark:bg-green-500"
+						>
+							1
+						</div>
+						<div>
+							<h3 class="mb-2 text-xl font-semibold text-gray-800 dark:text-gray-100">
+								Create Your Characters
+							</h3>
+							<p class="text-gray-600 dark:text-gray-300">
+								Add users with names and unique prefixes (e.g., Josh with prefix "J", John with
+								prefix "Jo").
+							</p>
+						</div>
+					</div>
+					<div class="flex items-center gap-8">
+						<div
+							class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-green-600 text-xl font-bold text-white dark:bg-green-500"
+						>
+							2
+						</div>
+						<div>
+							<h3 class="mb-2 text-xl font-semibold text-gray-800 dark:text-gray-100">
+								Write Your Dialogue
+							</h3>
+							<p class="text-gray-600 dark:text-gray-300">
+								Use simple format like "J: Hello there!" or import existing mcfunction code.
+							</p>
+						</div>
+					</div>
+					<div class="flex items-center gap-8">
+						<div
+							class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-green-600 text-xl font-bold text-white dark:bg-green-500"
+						>
+							3
+						</div>
+						<div>
+							<h3 class="mb-2 text-xl font-semibold text-gray-800 dark:text-gray-100">
+								Preview & Edit
+							</h3>
+							<p class="text-gray-600 dark:text-gray-300">
+								See how your dialogue looks in-game and make adjustments in the built-in editor.
+							</p>
+						</div>
+					</div>
+					<div class="flex items-center gap-8">
+						<div
+							class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-green-600 text-xl font-bold text-white dark:bg-green-500"
+						>
+							4
+						</div>
+						<div>
+							<h3 class="mb-2 text-xl font-semibold text-gray-800 dark:text-gray-100">
+								Export & Use
+							</h3>
+							<p class="text-gray-600 dark:text-gray-300">
+								Download your .mcfunction file and add it to your Minecraft datapack!
+							</p>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<!-- CTA Section -->
+	<section
+		class="bg-gradient-to-r from-green-600 to-emerald-600 px-4 py-20 dark:from-green-800 dark:to-emerald-900"
+	>
+		<div class="container mx-auto text-center">
+			<div class="mx-auto max-w-3xl">
+				<h2 class="mb-6 text-4xl font-bold text-white">Ready to Create Amazing Dialogue?</h2>
+				<p class="mb-8 text-xl text-green-100 dark:text-green-200">
+					Just stop thinking and hit the button below.
+				</p>
+				<a
+					href="/app"
+					class="mx-auto flex items-center justify-center gap-2 rounded-lg bg-white px-8 py-4 text-lg font-semibold text-green-600 transition-colors hover:bg-gray-50 dark:bg-gray-900 dark:text-green-400 dark:hover:bg-gray-800"
+				>
+					Start Creating Now
+					<ArrowRight class="h-5 w-5" />
+				</a>
+			</div>
+		</div>
+	</section>
+
+	<!-- Footer -->
+	<footer class="bg-gray-900 px-4 py-12 text-white dark:bg-black">
+		<div class="container mx-auto">
+			<div class="mx-auto max-w-6xl">
+				<div class="dark:text-white-900 text-center text-gray-400">
+					<p>Made with ❤️ for God and His Holy Mother</p>
+				</div>
+			</div>
+		</div>
+	</footer>
 </div>
