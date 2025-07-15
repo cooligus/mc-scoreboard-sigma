@@ -15,11 +15,12 @@
 		escapeRegexSpecialChars,
 		createCommand
 	} from '$lib/parsers';
-	import { runPreview as runPreviewUtil } from '$lib/preview';
+	import { runPreview as runPreviewUtil, cancelPreview } from '$lib/preview';
 	import type { Command, UserFunction } from '$lib/interfaces';
 	import { scriptSettings } from '$lib/stores/settings';
 	import { GripVertical, Trash2, Wine, X } from 'lucide-svelte';
 	import * as Select from '$lib/components/ui/select';
+	import * as Card from '$lib/components/ui/card';
 
 	const users = writable<UserFunction[]>([
 		{ name: 'Wiesiek', scriptPrefix: 'W', format: 'function characters:wiesiek {Line: "%s"}' }
@@ -390,21 +391,21 @@
 	</Dialog.Root>
 
 	{#if $previewVisible}
-		<div
-			class="fixed bottom-4 right-4 z-50 max-w-md rounded-lg border bg-gray-800 p-4 text-white shadow-lg shadow-lg dark:bg-gray-900"
-		>
-			<div class="mb-2 flex items-center justify-between">
-				<h3 class="text-lg font-semibold">Preview</h3>
-				<Button onclick={() => previewVisible.set(false)}>
+		<Card.Root class="fixed bottom-4 right-4 z-50 max-w-md shadow-lg">
+			<Card.Header class="flex flex-row items-center justify-between">
+				<Card.Title class="text-lg font-semibold">Preview</Card.Title>
+				<Button onclick={() => { previewVisible.set(false); cancelPreview(); }}>
 					<X class="h-4 w-4" />
 				</Button>
-			</div>
-			<div class="mb-2 text-sm">
-				Command {$previewIndex + 1} of {$commands.length}
-			</div>
-			<div class="rounded border p-3 font-mono text-sm">
-				{$currentPreviewCommand || 'Waiting...'}
-			</div>
-		</div>
+			</Card.Header>
+			<Card.Content>
+				<div class="mb-2 text-sm">
+					Command {$previewIndex + 1} of {$commands.length}
+				</div>
+				<div class="rounded border p-3 font-mono text-sm">
+					{$currentPreviewCommand || 'Waiting...'}
+				</div>
+			</Card.Content>
+		</Card.Root>
 	{/if}
 </div>
