@@ -6,7 +6,7 @@
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { writable } from 'svelte/store';
 	import { dndzone } from 'svelte-dnd-action';
-	import { v4 as uuid } from 'uuid';
+	import { FileDown, Play, Users, Settings, FileUp } from 'lucide-svelte';
 	import {
 		parseMcfunctionScript,
 		parseCommands,
@@ -34,6 +34,25 @@
 	const settingsDialogOpen = writable(false);
 	const usersDialogOpen = writable(false);
 	const generateDialogOpen = writable(false);
+
+	const handleImport = () => importDialogOpen.set(true);
+	const handleSettings = () => settingsDialogOpen.set(true);
+	const handleUsers = () => usersDialogOpen.set(true);
+	const handlePreview = () => {
+		runPreview();
+	};
+	const handleExport = () => {
+		generateCommands();
+		generateDialogOpen.set(true);
+	};
+
+	const navbarButtons = [
+		{ label: 'Import', onclick: handleImport, title: 'Import', icon: FileUp, variant: 'ghost' },
+		{ label: 'Settings', onclick: handleSettings, title: 'Settings', icon: Settings, variant: 'ghost' },
+		{ label: 'Users', onclick: handleUsers, title: 'Users', icon: Users },
+		{ label: 'Preview', onclick: handlePreview, title: 'Preview', icon: Play, variant: 'blue' },
+		{ label: 'Export', onclick: handleExport, title: 'Export', icon: FileDown, variant: 'success' }
+	];
 
 	const parseCommandsOnClick = () => {
 		const parsedCommands = parseCommands(
@@ -130,17 +149,6 @@
 		});
 	};
 
-	const handleImport = () => importDialogOpen.set(true);
-	const handleSettings = () => settingsDialogOpen.set(true);
-	const handleUsers = () => usersDialogOpen.set(true);
-	const handlePreview = () => {
-		runPreview();
-	};
-	const handleExport = () => {
-		generateCommands();
-		generateDialogOpen.set(true);
-	};
-
 	const toggleCommandCustom = (commandId: string) => {
 		commands.update((cmds) =>
 			cmds.map((cmd) =>
@@ -162,13 +170,7 @@
 	}
 </script>
 
-<Navbar
-	onImport={handleImport}
-	onSettings={handleSettings}
-	onUsers={handleUsers}
-	onPreview={handlePreview}
-	onExport={handleExport}
-/>
+<Navbar buttons={navbarButtons} />
 
 <div class="container mx-auto p-4">
 	<div class="mb-8 text-center">
