@@ -6,11 +6,13 @@
 </script>
 
 <nav
-	class="sticky top-0 z-40 border-b border-green-100 bg-white/80 backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/80"
+	class="sticky top-0 z-40 border-b border-green-100 bg-white/20 backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/20"
 >
 	<div class="container mx-auto px-4 py-4">
 		<div class="flex items-center justify-between">
-			<img src="{base}/favicon.svg" alt="Logo" class="w-24" />
+			<a href="{base}/">
+				<img src="{base}/favicon.svg" alt="Logo" class="w-24" />
+			</a>
 			<div class="flex items-center space-x-2">
 				{#if buttons && buttons.length}
 					{#each buttons as button}

@@ -173,13 +173,7 @@
 <Navbar buttons={navbarButtons} />
 
 <div class="container mx-auto p-4">
-	<div class="mb-8 text-center">
-		<h1 class="mb-2 text-4xl font-bold">MCJ Wyniki</h1>
-		<p class="">Minecraft Java Edition Dialogue Generator</p>
-	</div>
-
-	<section class="mb-8 rounded-lg border p-6 shadow-md">
-		<h2 class="mb-4 text-2xl font-semibold">Commands</h2>
+	<section class="mb-8 p-6 shadow-md">
 		<div class="mb-4 flex gap-2">
 			<Button onclick={() => increaseAllSpans(5)} class="flex-1">+5 All Spans</Button>
 			<Button onclick={() => decreaseAllSpans(5)} class="flex-1">-5 All Spans</Button>
