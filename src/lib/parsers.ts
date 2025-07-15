@@ -41,7 +41,16 @@ const processCommandLine = (line: string, scriptName: string, previousIncremente
 	if (!match) return null;
 
 	const [, , currentScriptName, incrementerStr, commandContent] = match;
-	validateScriptName(scriptName, currentScriptName, 'command');
+	let scriptNameToUse = scriptName;
+	try {
+		validateScriptName(scriptName, currentScriptName, 'command');
+	} catch (e) {
+		if (!scriptName) {
+			scriptNameToUse = currentScriptName;
+		} else {
+			throw e;
+		}
+	}
 
 	const currentIncrementer = parseInt(incrementerStr, 10);
 	const span = currentIncrementer - previousIncrementer;
@@ -49,7 +58,8 @@ const processCommandLine = (line: string, scriptName: string, previousIncremente
 	return {
 		span,
 		content: commandContent,
-		nextIncrementer: currentIncrementer
+		nextIncrementer: currentIncrementer,
+		scriptName: scriptNameToUse
 	};
 };
 
@@ -69,50 +79,74 @@ const createCommand = (content: string): Command => ({
 });
 
 export const parseMcfunctionScript = (script: string) => {
-	const lines = script.split('\n').filter((line) => line.trim() !== '');
-	validateScriptLines(lines);
+    let lines = script.split('\n').filter((line) => line.trim() !== '');
 
-	const { scriptName, initialCounter } = parseInitialLine(lines[0]);
+    let scriptName: string = '';
+    let initialCounter: number = 0;
+    let startIdx = 0;
+    let endIdx = lines.length;
 
-	const commands: Command[] = [];
-	let previousIncrementer = initialCounter;
-	let initialSpan: number | null = null;
-	let prevCommand: Command | null = null;
+    try {
+        ({ scriptName, initialCounter } = parseInitialLine(lines[0]));
+    } catch {}
 
-	for (let i = 1; i < lines.length; i++) {
-		const line = lines[i];
+    const isValidEnd = (line: string) => {
+        try {
+            processFinalLine(line, scriptName);
+            return true;
+        } catch {
+            try {
+                processCommandLine(line, scriptName, initialCounter);
+                return true;
+            } catch {
+                return false;
+            }
+        }
+    };
+    if (lines.length > startIdx && !isValidEnd(lines[lines.length - 1])) {
+        endIdx = lines.length - 1;
+    }
 
-		const commandData = processCommandLine(line, scriptName, previousIncrementer);
-		if (commandData) {
-			if (prevCommand) {
-				prevCommand.span = commandData.span;
-			} else {
-				initialSpan = commandData.span;
-			}
+    const commands: Command[] = [];
+    let previousIncrementer = initialCounter;
+    let initialSpan: number | null = null;
+    let prevCommand: Command | null = null;
 
-			const command = createCommand(commandData.content);
-			commands.push(command);
-			prevCommand = command;
-			previousIncrementer = commandData.nextIncrementer;
-			continue;
-		}
+    for (let i = startIdx + 1; i < endIdx; i++) {
+        const line = lines[i];
 
-		if (processFinalLine(line, scriptName)) {
-			if (prevCommand) {
-				prevCommand.span = 0;
-			}
-			continue;
-		}
+        const commandData = processCommandLine(line, scriptName, previousIncrementer);
+        if (commandData) {
+            if (!scriptName && commandData.scriptName) {
+                scriptName = commandData.scriptName;
+            }
+            if (prevCommand) {
+                prevCommand.span = commandData.span;
+            } else {
+                initialSpan = commandData.span;
+            }
 
-		throw new Error(`Invalid script format: Unrecognized line type: ${line}`);
-	}
+            const command = createCommand(commandData.content);
+            commands.push(command);
+            prevCommand = command;
+            previousIncrementer = commandData.nextIncrementer;
+            continue;
+        }
 
-	return {
-		scriptName,
-		initialCounter,
-		commands,
-		initialSpan
-	};
+        if (processFinalLine(line, scriptName)) {
+            if (prevCommand) {
+                prevCommand.span = 0;
+            }
+            continue;
+        }
+    }
+
+    return {
+        scriptName,
+        initialCounter,
+        commands,
+        initialSpan
+    };
 };
 
 export const getSpanFromLine = (line: string, characterMultiplier: number, minimalSpan: number) => {
