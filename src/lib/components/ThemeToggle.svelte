@@ -11,18 +11,25 @@
 
 	let selectedTheme = 'system';
 
-	function handleThemeChange(themeValue: string) {
+	const getTheme = () => selectedTheme;
+
+	const setTheme = (themeValue: string) => {
 		setMode(themeValue as 'light' | 'dark' | 'system');
 		selectedTheme = themeValue;
-	}
+	};
 </script>
 
 <div class="w-36">
-	<Select.Root type="single" bind:value={() =>selectedTheme, handleThemeChange} >
+	<Select.Root type="single" bind:value={getTheme, setTheme}>
 		<Select.Trigger>
 			<div class="flex items-center gap-2">
-				<svelte:component this={themeOptions.find((o) => o.value === selectedTheme)?.icon || Monitor} class="h-4 w-4" />
-				<span class="hidden sm:inline">{themeOptions.find((o) => o.value === selectedTheme)?.label || 'Theme'}</span>
+				<svelte:component
+					this={themeOptions.find((o) => o.value === selectedTheme)?.icon || Monitor}
+					class="h-4 w-4"
+				/>
+				<span class="hidden sm:inline"
+					>{themeOptions.find((o) => o.value === selectedTheme)?.label || 'Theme'}</span
+				>
 			</div>
 		</Select.Trigger>
 		<Select.Content>

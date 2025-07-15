@@ -18,7 +18,7 @@ export const runPreview = (
 		setCurrentPreviewCommand: (command: string) => void;
 	}
 ) => {
-	const filteredCommands = commands.filter(cmd => !cmd.isCustom);
+	const filteredCommands = commands.filter((cmd) => !cmd.isCustom);
 	if (filteredCommands.length === 0) return;
 
 	const spanMultiplier = 50;

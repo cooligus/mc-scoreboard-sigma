@@ -71,13 +71,17 @@ const processFinalLine = (line: string, scriptName: string) => {
 	return true;
 };
 
-export const createCommand = (content?: string, isCustom?: boolean, span?: number, user?: UserFunction): Command => ({
+export const createCommand = (
+	content?: string,
+	isCustom?: boolean,
+	span?: number,
+	user?: UserFunction
+): Command => ({
 	id: uuid(),
 	span: span || 0,
 	content: content || '',
 	isCustom: isCustom || false,
-	user,
-	userName: user?.name || ''
+	user
 });
 
 export function isValidEnd(line: string, scriptName: string, previousIncrementer: number) {
@@ -95,7 +99,7 @@ export function isValidEnd(line: string, scriptName: string, previousIncrementer
 }
 
 export const parseMcfunctionScript = (script: string) => {
-	const lines = script.split('\n')
+	const lines = script.split('\n');
 	validateScriptLines(lines);
 
 	let scriptName = '';
@@ -218,18 +222,15 @@ export const getSingleCommand = (incrementer: number, command: Command, scriptNa
 export const getScriptFinalStatement = (incrementer: number, scriptName: string) =>
 	`execute if score @s ${scriptName} matches ${incrementer}.. run scoreboard players set @s ${scriptName} -1\n`;
 
-export const generateCommands = (
-	commands: Command[],
-	scriptData: ScriptSettings
-) => {
+export const generateCommands = (commands: Command[], scriptData: ScriptSettings) => {
 	const initialScriptContent = getScriptIncrementer(scriptData.name);
 	let realScriptContent = '';
 	let conversationSpan = scriptData.initialSpan;
 	for (let i = 0; i < commands.length; i++) {
 		if (commands[i].isCustom) {
 			realScriptContent += commands[i].content + '\n';
-			continue
-		} 
+			continue;
+		}
 		realScriptContent += getSingleCommand(conversationSpan, commands[i], scriptData.name);
 		conversationSpan += commands[i].span;
 	}

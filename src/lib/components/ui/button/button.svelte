@@ -15,7 +15,9 @@
 				ghost: 'hover:bg-accent hover:text-accent-foreground',
 				link: 'text-primary underline-offset-4 hover:underline',
 				success: 'bg-green-600 text-white hover:bg-green-700',
-				blue: 'bg-blue-600 text-white hover:bg-blue-700'
+				blue: 'bg-blue-600 text-white hover:bg-blue-700',
+				hidden:
+					'hover:bg-accent hover:text-accent-foreground opacity-0 hover:opacity-100 animate-opacity transition-all duration-300 ease-out group-hover:opacity-100'
 			},
 			size: {
 				default: 'h-9 px-4 py-2',

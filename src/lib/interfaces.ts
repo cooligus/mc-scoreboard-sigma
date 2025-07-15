@@ -7,7 +7,6 @@ export interface UserFunction {
 export interface Command {
 	id: string;
 	user?: UserFunction;
-	userName: string;
 	span: number;
 	content: string;
 	isCustom: boolean;
