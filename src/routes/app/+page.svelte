@@ -40,10 +40,7 @@
 			$users,
 			$scriptSettings.characterMultiplier,
 			$scriptSettings.minimalSpan
-		).map((cmd) => ({
-			...cmd,
-			userName: cmd.user?.name || ''
-		}));
+		);
 		commands.set(parsedCommands);
 		importDialogOpen.set(false);
 	};
@@ -51,7 +48,6 @@
 	const parseMcfunctionScriptOnClick = () => {
 		const {
 			scriptName,
-			initialCounter,
 			commands: parsedCommands,
 			initialSpan
 		} = parseMcfunctionScript($rawMcfunction);
@@ -79,7 +75,6 @@
 		commands.set(updatedCommands);
 		scriptSettings.set({
 			name: scriptName,
-			initialCounter,
 			initialSpan: initialSpan ?? 10,
 			characterMultiplier: $scriptSettings.characterMultiplier,
 			minimalSpan: $scriptSettings.minimalSpan
@@ -289,10 +284,6 @@
 						bind:value={$scriptSettings.name}
 						placeholder="e.g., my_command_script"
 					/>
-				</div>
-				<div>
-					<label for="initialCounter" class="block text-sm font-medium">Initial Counter</label>
-					<Input id="initialCounter" type="number" bind:value={$scriptSettings.initialCounter} />
 				</div>
 				<div>
 					<label for="initialSpan" class="block text-sm font-medium">Initial Span</label>

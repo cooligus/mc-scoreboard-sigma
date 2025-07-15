@@ -23,10 +23,8 @@ const parseInitialLine = (line: string) => {
 	if (!match) {
 		throw new Error('Invalid script format: Could not parse initial line.');
 	}
-
 	return {
-		scriptName: match[1],
-		initialCounter: parseInt(match[2], 10)
+		scriptName: match[1]
 	};
 };
 
@@ -78,75 +76,79 @@ const createCommand = (content: string): Command => ({
 	content
 });
 
+export function isValidEnd(line: string, scriptName: string, previousIncrementer: number) {
+	try {
+		processFinalLine(line, scriptName);
+		return true;
+	} catch {
+		try {
+			processCommandLine(line, scriptName, previousIncrementer);
+			return true;
+		} catch {
+			return false;
+		}
+	}
+}
+
 export const parseMcfunctionScript = (script: string) => {
-    let lines = script.split('\n').filter((line) => line.trim() !== '');
+	const lines = script.split('\n').filter((line) => line.trim() !== '');
+	validateScriptLines(lines);
 
-    let scriptName: string = '';
-    let initialCounter: number = 0;
-    let startIdx = 0;
-    let endIdx = lines.length;
+	let scriptName = '';
+	try {
+		({ scriptName } = parseInitialLine(lines[0]));
+	} catch {}
 
-    try {
-        ({ scriptName, initialCounter } = parseInitialLine(lines[0]));
-    } catch {}
+	const commands: Command[] = [];
+	let previousIncrementer = 0;
+	let initialSpan: number | null = null;
+	let prevCommand: Command | null = null;
 
-    const isValidEnd = (line: string) => {
-        try {
-            processFinalLine(line, scriptName);
-            return true;
-        } catch {
-            try {
-                processCommandLine(line, scriptName, initialCounter);
-                return true;
-            } catch {
-                return false;
-            }
-        }
-    };
-    if (lines.length > startIdx && !isValidEnd(lines[lines.length - 1])) {
-        endIdx = lines.length - 1;
-    }
+	let i = 0;
+	if (scriptName) {
+		i++;
+	}
 
-    const commands: Command[] = [];
-    let previousIncrementer = initialCounter;
-    let initialSpan: number | null = null;
-    let prevCommand: Command | null = null;
+	const lastLineIndex = lines.length - 1;
+	for (; i < lastLineIndex; i++) {
+		const line = lines[i];
 
-    for (let i = startIdx + 1; i < endIdx; i++) {
-        const line = lines[i];
+		const commandData = processCommandLine(line, scriptName, previousIncrementer);
+		if (commandData) {
+			if (prevCommand) {
+				prevCommand.span = commandData.span;
+			} else {
+				initialSpan = commandData.span;
+			}
 
-        const commandData = processCommandLine(line, scriptName, previousIncrementer);
-        if (commandData) {
-            if (!scriptName && commandData.scriptName) {
-                scriptName = commandData.scriptName;
-            }
-            if (prevCommand) {
-                prevCommand.span = commandData.span;
-            } else {
-                initialSpan = commandData.span;
-            }
+			if (!scriptName) {
+				scriptName = commandData.scriptName;
+			}
 
-            const command = createCommand(commandData.content);
-            commands.push(command);
-            prevCommand = command;
-            previousIncrementer = commandData.nextIncrementer;
-            continue;
-        }
+			const command = createCommand(commandData.content);
+			commands.push(command);
+			prevCommand = command;
+			previousIncrementer = commandData.nextIncrementer;
+			continue;
+		}
 
-        if (processFinalLine(line, scriptName)) {
-            if (prevCommand) {
-                prevCommand.span = 0;
-            }
-            continue;
-        }
-    }
+		throw new Error(`Invalid script format: Unrecognized line type: ${line}`);
+	}
 
-    return {
-        scriptName,
-        initialCounter,
-        commands,
-        initialSpan
-    };
+	const finalLine = lines[lastLineIndex];
+	const finalMatch = finalLine.match(MCFUNCTION_PATTERNS.finalLine);
+	if (finalMatch && prevCommand) {
+		const finalIncrementer = parseInt(finalMatch[3], 10);
+		prevCommand.span = finalIncrementer - previousIncrementer;
+	} else if (prevCommand) {
+		prevCommand.span = 0;
+	}
+
+	return {
+		scriptName,
+		commands,
+		initialSpan
+	};
 };
 
 export const getSpanFromLine = (line: string, characterMultiplier: number, minimalSpan: number) => {
@@ -178,7 +180,7 @@ export const parseCommands = (
 				(user) => user.scriptPrefix.toLocaleLowerCase() === caseInsesitiveSpeaker
 			);
 			if (user) {
-				commands.push({ id: uuid(), user, span, content });
+				commands.push({ id: uuid(), user, userName: user.name, span, content });
 			} else {
 				console.error(`Unknown speaker: ${caseInsesitiveSpeaker}`);
 			}
@@ -197,8 +199,8 @@ export const parseCommands = (
 export const getUserFromUsername = (username: string, users: UserFunction[]) =>
 	users.find((user: UserFunction) => user.name === username);
 
-export const getScriptIncrementer = (scriptName: string, initialCounter: number) =>
-	`scoreboard players add @s ${scriptName} ${initialCounter}\n`;
+export const getScriptIncrementer = (scriptName: string) =>
+	`scoreboard players add @s ${scriptName} 1\n`;
 
 export const getSingleCommand = (incrementer: number, command: Command, scriptName: string) => {
 	let renderedCommand = command.content;
@@ -216,7 +218,7 @@ export const generateCommands = (
 	commands: Command[],
 	scriptData: { name: string; initialCounter: number; initialSpan: number }
 ) => {
-	const initialScriptContent = getScriptIncrementer(scriptData.name, scriptData.initialCounter);
+	const initialScriptContent = getScriptIncrementer(scriptData.name);
 	let realScriptContent = '';
 	let conversationSpan = scriptData.initialSpan;
 	for (let i = 0; i < commands.length; i++) {
