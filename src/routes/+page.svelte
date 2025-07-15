@@ -1,40 +1,19 @@
 <script>
 	import { ArrowRight, Code, Zap, Shield, Users, FileText, Download, Play } from 'lucide-svelte';
 	import { base } from '$app/paths';
+	import Navbar from '$lib/components/Navbar.svelte';
+	const navbarButtons = [
+		{ label: 'Features', href: '#features', variant: 'ghost' },
+		{ label: 'How it Works', href: '#how-it-works', variant: 'ghost' },
+		{ label: 'Get Started', href: `${base}/app`, icon: ArrowRight, variant: 'success' }
+	];
 </script>
 
 <div
 	class="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-gray-900 dark:via-gray-950 dark:to-gray-900"
 >
 	<!-- Navigation -->
-	<nav
-		class="sticky top-0 z-40 border-b border-green-100 bg-white/80 backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/80"
-	>
-		<div class="container mx-auto px-4 py-4">
-			<div class="flex items-center justify-between">
-				<img src="{base}/favicon.svg" alt="Logo" class="w-24" />
-				<div class="flex items-center space-x-4">
-					<a
-						href="#features"
-						class="text-gray-600 transition-colors hover:text-green-600 dark:text-gray-300 dark:hover:text-green-400"
-						>Features</a
-					>
-					<a
-						href="#how-it-works"
-						class="text-gray-600 transition-colors hover:text-green-600 dark:text-gray-300 dark:hover:text-green-400"
-						>How it Works</a
-					>
-					<a
-						class="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-white transition-colors hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600"
-						href="{base}/app"
-					>
-						Get Started
-						<ArrowRight class="h-4 w-4" />
-					</a>
-				</div>
-			</div>
-		</div>
-	</nav>
+	<Navbar buttons={navbarButtons} />
 
 	<!-- Hero Section -->
 	<section class="px-4 py-20">

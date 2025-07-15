@@ -1,5 +1,6 @@
 import type { Command, UserFunction } from '$lib/interfaces';
 import { v4 as uuid } from 'uuid';
+import type { ScriptSettings } from '$lib/stores/settings';
 
 export function escapeRegexSpecialChars(str: string): string {
 	return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -23,10 +24,8 @@ const parseInitialLine = (line: string) => {
 	if (!match) {
 		throw new Error('Invalid script format: Could not parse initial line.');
 	}
-
 	return {
-		scriptName: match[1],
-		initialCounter: parseInt(match[2], 10)
+		scriptName: match[1]
 	};
 };
 
@@ -41,7 +40,16 @@ const processCommandLine = (line: string, scriptName: string, previousIncremente
 	if (!match) return null;
 
 	const [, , currentScriptName, incrementerStr, commandContent] = match;
-	validateScriptName(scriptName, currentScriptName, 'command');
+	let scriptNameToUse = scriptName;
+	try {
+		validateScriptName(scriptName, currentScriptName, 'command');
+	} catch (e) {
+		if (!scriptName) {
+			scriptNameToUse = currentScriptName;
+		} else {
+			throw e;
+		}
+	}
 
 	const currentIncrementer = parseInt(incrementerStr, 10);
 	const span = currentIncrementer - previousIncrementer;
@@ -49,7 +57,8 @@ const processCommandLine = (line: string, scriptName: string, previousIncremente
 	return {
 		span,
 		content: commandContent,
-		nextIncrementer: currentIncrementer
+		nextIncrementer: currentIncrementer,
+		scriptName: scriptNameToUse
 	};
 };
 
@@ -62,24 +71,50 @@ const processFinalLine = (line: string, scriptName: string) => {
 	return true;
 };
 
-const createCommand = (content: string): Command => ({
+export const createCommand = (content?: string, isCustom?: boolean, span?: number, user?: UserFunction): Command => ({
 	id: uuid(),
-	span: 0,
-	content
+	span: span || 0,
+	content: content || '',
+	isCustom: isCustom || false,
+	user,
+	userName: user?.name || ''
 });
 
+export function isValidEnd(line: string, scriptName: string, previousIncrementer: number) {
+	try {
+		processFinalLine(line, scriptName);
+		return true;
+	} catch {
+		try {
+			processCommandLine(line, scriptName, previousIncrementer);
+			return true;
+		} catch {
+			return false;
+		}
+	}
+}
+
 export const parseMcfunctionScript = (script: string) => {
-	const lines = script.split('\n').filter((line) => line.trim() !== '');
+	const lines = script.split('\n')
 	validateScriptLines(lines);
 
-	const { scriptName, initialCounter } = parseInitialLine(lines[0]);
+	let scriptName = '';
+	try {
+		({ scriptName } = parseInitialLine(lines[0]));
+	} catch {}
 
 	const commands: Command[] = [];
-	let previousIncrementer = initialCounter;
+	let previousIncrementer = 0;
 	let initialSpan: number | null = null;
 	let prevCommand: Command | null = null;
 
-	for (let i = 1; i < lines.length; i++) {
+	let i = 0;
+	if (scriptName) {
+		i++;
+	}
+
+	const lastLineIndex = lines.length - 1;
+	for (; i < lastLineIndex; i++) {
 		const line = lines[i];
 
 		const commandData = processCommandLine(line, scriptName, previousIncrementer);
@@ -90,6 +125,10 @@ export const parseMcfunctionScript = (script: string) => {
 				initialSpan = commandData.span;
 			}
 
+			if (!scriptName) {
+				scriptName = commandData.scriptName;
+			}
+
 			const command = createCommand(commandData.content);
 			commands.push(command);
 			prevCommand = command;
@@ -97,19 +136,20 @@ export const parseMcfunctionScript = (script: string) => {
 			continue;
 		}
 
-		if (processFinalLine(line, scriptName)) {
-			if (prevCommand) {
-				prevCommand.span = 0;
-			}
-			continue;
-		}
+		commands.push(createCommand(line, true));
+	}
 
-		throw new Error(`Invalid script format: Unrecognized line type: ${line}`);
+	const finalLine = lines[lastLineIndex];
+	const finalMatch = finalLine.match(MCFUNCTION_PATTERNS.finalLine);
+	if (finalMatch && prevCommand) {
+		const finalIncrementer = parseInt(finalMatch[3], 10);
+		prevCommand.span = finalIncrementer - previousIncrementer;
+	} else if (prevCommand) {
+		prevCommand.span = 0;
 	}
 
 	return {
 		scriptName,
-		initialCounter,
 		commands,
 		initialSpan
 	};
@@ -144,7 +184,7 @@ export const parseCommands = (
 				(user) => user.scriptPrefix.toLocaleLowerCase() === caseInsesitiveSpeaker
 			);
 			if (user) {
-				commands.push({ id: uuid(), user, span, content });
+				commands.push(createCommand(content, false, span, user));
 			} else {
 				console.error(`Unknown speaker: ${caseInsesitiveSpeaker}`);
 			}
@@ -163,8 +203,8 @@ export const parseCommands = (
 export const getUserFromUsername = (username: string, users: UserFunction[]) =>
 	users.find((user: UserFunction) => user.name === username);
 
-export const getScriptIncrementer = (scriptName: string, initialCounter: number) =>
-	`scoreboard players add @s ${scriptName} ${initialCounter}\n`;
+export const getScriptIncrementer = (scriptName: string) =>
+	`scoreboard players add @s ${scriptName} 1\n`;
 
 export const getSingleCommand = (incrementer: number, command: Command, scriptName: string) => {
 	let renderedCommand = command.content;
@@ -180,12 +220,16 @@ export const getScriptFinalStatement = (incrementer: number, scriptName: string)
 
 export const generateCommands = (
 	commands: Command[],
-	scriptData: { name: string; initialCounter: number; initialSpan: number }
+	scriptData: ScriptSettings
 ) => {
-	const initialScriptContent = getScriptIncrementer(scriptData.name, scriptData.initialCounter);
+	const initialScriptContent = getScriptIncrementer(scriptData.name);
 	let realScriptContent = '';
 	let conversationSpan = scriptData.initialSpan;
 	for (let i = 0; i < commands.length; i++) {
+		if (commands[i].isCustom) {
+			realScriptContent += commands[i].content + '\n';
+			continue
+		} 
 		realScriptContent += getSingleCommand(conversationSpan, commands[i], scriptData.name);
 		conversationSpan += commands[i].span;
 	}

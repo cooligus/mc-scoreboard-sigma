@@ -1,9 +1,8 @@
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
 
-interface ScriptSettings {
+export interface ScriptSettings {
 	name: string;
-	initialCounter: number;
 	initialSpan: number;
 	characterMultiplier: number;
 	minimalSpan: number;
@@ -11,7 +10,6 @@ interface ScriptSettings {
 
 const defaultSettings: ScriptSettings = {
 	name: '',
-	initialCounter: 1,
 	initialSpan: 10,
 	characterMultiplier: 4,
 	minimalSpan: 20
