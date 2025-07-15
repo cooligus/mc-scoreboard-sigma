@@ -26,7 +26,7 @@
 					>
 					<a
 						class="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-white transition-colors hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600"
-						href="/app"
+						href="{base}/app"
 					>
 						Get Started
 						<ArrowRight class="h-4 w-4" />
@@ -51,7 +51,7 @@
 				</p>
 				<div class="flex flex-col justify-center gap-4 sm:flex-row">
 					<a
-						href="/app"
+						href="{base}/app"
 						class="flex items-center justify-center gap-2 rounded-lg bg-green-600 px-8 py-4 text-lg font-semibold text-white transition-colors hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600"
 					>
 						<Play class="h-5 w-5" />
@@ -283,7 +283,7 @@
 					Just stop thinking and hit the button below.
 				</p>
 				<a
-					href="/app"
+					href="{base}/app"
 					class="mx-auto flex items-center justify-center gap-2 rounded-lg bg-white px-8 py-4 text-lg font-semibold text-green-600 transition-colors hover:bg-gray-50 dark:bg-gray-900 dark:text-green-400 dark:hover:bg-gray-800"
 				>
 					Start Creating Now
