@@ -1,5 +1,6 @@
 import type { Command, UserFunction } from '$lib/interfaces';
 import { v4 as uuid } from 'uuid';
+import type { ScriptSettings } from '$lib/stores/settings';
 
 export function escapeRegexSpecialChars(str: string): string {
 	return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -70,10 +71,13 @@ const processFinalLine = (line: string, scriptName: string) => {
 	return true;
 };
 
-const createCommand = (content: string): Command => ({
+export const createCommand = (content?: string, isCustom?: boolean, span?: number, user?: UserFunction): Command => ({
 	id: uuid(),
-	span: 0,
-	content
+	span: span || 0,
+	content: content || '',
+	isCustom: isCustom || false,
+	user,
+	userName: user?.name || ''
 });
 
 export function isValidEnd(line: string, scriptName: string, previousIncrementer: number) {
@@ -91,7 +95,7 @@ export function isValidEnd(line: string, scriptName: string, previousIncrementer
 }
 
 export const parseMcfunctionScript = (script: string) => {
-	const lines = script.split('\n').filter((line) => line.trim() !== '');
+	const lines = script.split('\n')
 	validateScriptLines(lines);
 
 	let scriptName = '';
@@ -132,7 +136,7 @@ export const parseMcfunctionScript = (script: string) => {
 			continue;
 		}
 
-		throw new Error(`Invalid script format: Unrecognized line type: ${line}`);
+		commands.push(createCommand(line, true));
 	}
 
 	const finalLine = lines[lastLineIndex];
@@ -180,7 +184,7 @@ export const parseCommands = (
 				(user) => user.scriptPrefix.toLocaleLowerCase() === caseInsesitiveSpeaker
 			);
 			if (user) {
-				commands.push({ id: uuid(), user, userName: user.name, span, content });
+				commands.push(createCommand(content, false, span, user));
 			} else {
 				console.error(`Unknown speaker: ${caseInsesitiveSpeaker}`);
 			}
@@ -216,12 +220,16 @@ export const getScriptFinalStatement = (incrementer: number, scriptName: string)
 
 export const generateCommands = (
 	commands: Command[],
-	scriptData: { name: string; initialCounter: number; initialSpan: number }
+	scriptData: ScriptSettings
 ) => {
 	const initialScriptContent = getScriptIncrementer(scriptData.name);
 	let realScriptContent = '';
 	let conversationSpan = scriptData.initialSpan;
 	for (let i = 0; i < commands.length; i++) {
+		if (commands[i].isCustom) {
+			realScriptContent += commands[i].content + '\n';
+			continue
+		} 
 		realScriptContent += getSingleCommand(conversationSpan, commands[i], scriptData.name);
 		conversationSpan += commands[i].span;
 	}

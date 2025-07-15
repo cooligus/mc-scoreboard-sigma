@@ -1,7 +1,7 @@
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
 
-interface ScriptSettings {
+export interface ScriptSettings {
 	name: string;
 	initialSpan: number;
 	characterMultiplier: number;

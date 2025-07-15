@@ -12,12 +12,13 @@
 		parseCommands,
 		getUserFromUsername,
 		generateCommands as generateCommandsUtil,
-		escapeRegexSpecialChars
+		escapeRegexSpecialChars,
+		createCommand
 	} from '$lib/parsers';
 	import { runPreview as runPreviewUtil } from '$lib/preview';
 	import type { Command, UserFunction } from '$lib/interfaces';
 	import { scriptSettings } from '$lib/stores/settings';
-	import { GripVertical, Trash2, X } from 'lucide-svelte';
+	import { GripVertical, Trash2, Wine, X } from 'lucide-svelte';
 	import * as Select from '$lib/components/ui/select';
 
 	const users = writable<UserFunction[]>([
@@ -68,7 +69,8 @@
 				...command,
 				user: matchedUser,
 				userName: matchedUser?.name || '',
-				content: matchedContent
+				content: matchedContent,
+				isCustom: command.isCustom
 			};
 		});
 
@@ -82,11 +84,11 @@
 		importDialogOpen.set(false);
 	};
 
-	const addCommand = (userName: string) => {
+	const addCommand = (userName: string, isCustom?: boolean) => {
 		const user = getUserFromUsername(userName, $users);
 		commands.update((commands) => [
 			...commands,
-			{ id: uuid(), user, userName: user?.name || '', span: 0, content: '' }
+			createCommand(undefined, isCustom, 0, user)
 		]);
 	};
 
@@ -94,11 +96,6 @@
 		commands.update((commands) => commands.filter((cmd) => cmd.id !== commandId));
 	};
 
-	const changeCommandUser = (commandId: string, userName: string) => {
-		commands.update((commands) =>
-			commands.map((cmd) => (cmd.id === commandId ? { ...cmd, userName } : cmd))
-		);
-	};
 
 	const increaseAllSpans = (amount: number = 20) => {
 		commands.update((commands) => commands.map((cmd) => ({ ...cmd, span: cmd.span + amount })));
@@ -142,6 +139,18 @@
 	const handleExport = () => {
 		generateCommands();
 		generateDialogOpen.set(true);
+	};
+
+	const toggleCommandCustom = (commandId: string) => {
+		commands.update((cmds) =>
+			cmds.map((cmd) =>
+				cmd.id === commandId ? { ...cmd, isCustom: !cmd.isCustom } : cmd
+			)
+		);
+	};
+
+	const removeUser = (index: number) => {
+		users.update((us) => us.filter((_, i) => i !== index));
 	};
 
 	$: {
@@ -188,6 +197,7 @@
 						<GripVertical class="h-4 w-4" />
 					</span>
 					<div class="flex-1">
+						{#if !command.isCustom}
 						<div class="mb-2 flex items-center justify-between gap-3">
 							<Select.Root type="single" bind:value={command.userName}>
 								<Select.Trigger>{command.userName || 'No user'}</Select.Trigger>
@@ -198,38 +208,52 @@
 									{/each}
 								</Select.Content>
 							</Select.Root>
-							<label for="commandSpanMultiplier-{index}" class="block text-xs">seconds:</label>
-							<Input
-								id="commandSpanMultiplier-{index}"
-								type="number"
-								class="w-20"
-								value={command.span / 20}
-								on:input={(e) => {
-									const target = e.target as HTMLInputElement | null;
-									if (target) command.span = Number(target.value) * 20;
-								}}
-							/>
-							<label for="commandSpan-{index}" class="block text-xs">ticks:</label>
-							<Input
-								id="commandSpan-{index}"
-								type="number"
-								class="w-20"
-								bind:value={command.span}
-							/>
-							<button
-								class="flex h-6 w-6 items-center justify-center"
-								on:click={() => removeCommand(command.id)}
-								title="Remove command"
-								aria-label="Remove command"
-							>
-								<Trash2 class="h-4 w-4" />
-							</button>
+								<label for="commandSpanMultiplier-{index}" class="block text-xs">seconds:</label>
+								<Input
+									id="commandSpanMultiplier-{index}"
+									type="number"
+									class="w-20"
+									value={command.span / 20}
+									on:input={(e) => {
+										const target = e.target as HTMLInputElement | null;
+										if (target) command.span = Number(target.value) * 20;
+									}}
+								/>
+								<label for="commandSpan-{index}" class="block text-xs">ticks:</label>
+								<Input
+									id="commandSpan-{index}"
+									type="number"
+									class="w-20"
+									bind:value={command.span}
+								/>
 						</div>
+						{/if}
+						<div class="flex items-center gap-2">
 						<Textarea
 							id="commandContent-{index}"
 							bind:value={command.content}
 							class="mb-2 min-h-[3em]"
 						/>
+						<div class="flex flex-col space-between gap-2">
+							<Button
+								variant="ghost"
+								onclick={() => removeCommand(command.id)}
+								title="Remove command"
+								aria-label="Remove command"
+							>
+								<Trash2 class="h-4 w-4" />
+							</Button>
+							<Button
+								variant="ghost"
+								onclick={() => toggleCommandCustom(command.id)}
+								title="Toggle custom mode"
+								aria-label="Toggle custom mode"
+							>
+								<Wine class="h-4 w-4" />
+							</Button>
+						</div>
+							
+						</div>
 					</div>
 				</div>
 			{/each}
@@ -239,6 +263,7 @@
 			{#each $users as user}
 				<Button onclick={() => addCommand(user.name)}>+ {user.name}</Button>
 			{/each}
+			<Button onclick={() => addCommand('', true)}>+ Custom</Button>
 		</div>
 	</section>
 
@@ -314,7 +339,7 @@
 			</Dialog.Header>
 			<div class="space-y-4">
 				{#each $users as user, index}
-					<div class="flex flex-col gap-4 rounded-md border p-4 md:flex-row">
+					<div class="flex flex-col gap-4 rounded-md border p-4 md:flex-row items-center">
 						<div class="flex-1">
 							<label for="userName-{index}" class="block text-sm font-medium">Name</label>
 							<Input id="userName-{index}" bind:value={user.name} placeholder="Function Name" />
@@ -333,6 +358,14 @@
 							<label for="format-{index}" class="block text-sm font-medium">Format</label>
 							<Input id="format-{index}" bind:value={user.format} placeholder="e.g., Wiesiek: " />
 						</div>
+						<Button
+							variant="ghost"
+							onclick={() => removeUser(index)}
+							title="Delete user"
+							aria-label="Delete user"
+						>
+							<Trash2 class="h-4 w-4" />
+						</Button>
 					</div>
 				{/each}
 				<Button
