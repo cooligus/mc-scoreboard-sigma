@@ -11,25 +11,42 @@ export const cancelPreview = () => {
 
 export const runPreview = (
 	commands: Command[],
-	scriptData: { initialSpan: number },
+	initialSpan: number,
 	callbacks: {
 		setPreviewVisible: (visible: boolean) => void;
 		setPreviewIndex: (index: number) => void;
 		setCurrentPreviewCommand: (command: string) => void;
-	}
+	},
+	previewBeggining: string | null = null,
+	previewEnd: string | null = null
 ) => {
 	const filteredCommands = commands.filter((cmd) => !cmd.isCustom);
 	if (filteredCommands.length === 0) return;
+
+	let start = 0;
+	let end = filteredCommands.length - 1;
+	if (previewBeggining) {
+		const idx = filteredCommands.findIndex(cmd => cmd.id === previewBeggining);
+		if (idx !== -1) start = idx;
+	}
+	if (previewEnd) {
+		const idx = filteredCommands.findIndex(cmd => cmd.id === previewEnd);
+		if (idx !== -1) end = idx;
+	}
+	if (start > end) [start, end] = [end, start];
 
 	const spanMultiplier = 50;
 	callbacks.setPreviewVisible(true);
 	callbacks.setPreviewIndex(-1);
 	callbacks.setCurrentPreviewCommand('');
 
-	let currentSpan = scriptData.initialSpan;
+	let currentSpan = initialSpan;
+	if (previewBeggining) {
+		currentSpan = 0;
+	}
 
 	const showNextCommand = (index: number) => {
-		if (index >= filteredCommands.length) {
+		if (index > end) {
 			const timeoutId = setTimeout(() => {
 				callbacks.setPreviewVisible(false);
 				callbacks.setPreviewIndex(-1);
@@ -41,7 +58,6 @@ export const runPreview = (
 
 		const command = filteredCommands[index];
 		callbacks.setPreviewIndex(index);
-
 		callbacks.setCurrentPreviewCommand(command.content);
 
 		const timeoutId = setTimeout(() => {
@@ -51,7 +67,7 @@ export const runPreview = (
 	};
 
 	const initialTimeoutId = setTimeout(() => {
-		showNextCommand(0);
+		showNextCommand(start);
 	}, currentSpan * spanMultiplier);
 	previewTimeouts.push(initialTimeoutId);
 };
