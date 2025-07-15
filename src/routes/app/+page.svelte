@@ -146,11 +146,17 @@
 	const previewEnd = writable<string | null>(null);
 
 	const runPreview = () => {
-		runPreviewUtil($commands, $scriptSettings.initialSpan, {
-			setPreviewVisible: (visible) => previewVisible.set(visible),
-			setPreviewIndex: (index) => previewIndex.set(index),
-			setCurrentPreviewCommand: (command) => currentPreviewCommand.set(command)
-		}, $previewBeggining, $previewEnd);
+		runPreviewUtil(
+			$commands,
+			$scriptSettings.initialSpan,
+			{
+				setPreviewVisible: (visible) => previewVisible.set(visible),
+				setPreviewIndex: (index) => previewIndex.set(index),
+				setCurrentPreviewCommand: (command) => currentPreviewCommand.set(command)
+			},
+			$previewBeggining,
+			$previewEnd
+		);
 	};
 
 	const removeUser = (index: number) => {
@@ -256,44 +262,45 @@
 								>
 									<Settings />
 								</Button>
-
-								{#if command.id === $previewBeggining}
-									<Button
-										variant="success"
-										title="Unset the beggining of the preview"
-										aria-label="Unset the beggining of the preview"
-										onclick={() => previewBeggining.set(null)}
-									>
-										<Play />
-									</Button>
-								{:else}
-									<Button
-										variant="hidden"
-										title="Set the beggining of the preview"
-										aria-label="Set the beggining of the preview"
-										onclick={() => previewBeggining.set(command.id)}
-									>
-										<Play />
-									</Button>
-								{/if}
-								{#if command.id === $previewEnd}
-									<Button
-										variant="destructive"
-										title="Unset the end of the preview"
-										aria-label="Unset the end of the preview"
-										onclick={() => previewEnd.set(null)}
-									>
-										<CirclePause />
-									</Button>
-								{:else}
-									<Button
-										variant="hidden"
-										title="Set the end of the preview"
-										aria-label="Set the end of the preview"
-										onclick={() => previewEnd.set(command.id)}
-									>
-										<CirclePause />
-									</Button>
+								{#if !command.isCustom}
+									{#if command.id === $previewBeggining}
+										<Button
+											variant="success"
+											title="Unset the beggining of the preview"
+											aria-label="Unset the beggining of the preview"
+											onclick={() => previewBeggining.set(null)}
+										>
+											<Play />
+										</Button>
+									{:else}
+										<Button
+											variant="hidden"
+											title="Set the beggining of the preview"
+											aria-label="Set the beggining of the preview"
+											onclick={() => previewBeggining.set(command.id)}
+										>
+											<Play />
+										</Button>
+									{/if}
+									{#if command.id === $previewEnd}
+										<Button
+											variant="destructive"
+											title="Unset the end of the preview"
+											aria-label="Unset the end of the preview"
+											onclick={() => previewEnd.set(null)}
+										>
+											<CirclePause />
+										</Button>
+									{:else}
+										<Button
+											variant="hidden"
+											title="Set the end of the preview"
+											aria-label="Set the end of the preview"
+											onclick={() => previewEnd.set(command.id)}
+										>
+											<CirclePause />
+										</Button>
+									{/if}
 								{/if}
 							</div>
 						</div>
@@ -507,7 +514,7 @@
 	</Dialog.Root>
 
 	{#if $previewVisible}
-		<Card.Root class="fixed bottom-4 right-4 z-50 max-w-md shadow-lg">
+		<Card.Root class="fixed bottom-4 right-4 z-50 w-[40em] shadow-lg">
 			<Card.Header class="flex flex-row items-center justify-between">
 				<Card.Title class="text-lg font-semibold">Preview</Card.Title>
 				<Button

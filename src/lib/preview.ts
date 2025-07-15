@@ -26,11 +26,11 @@ export const runPreview = (
 	let start = 0;
 	let end = filteredCommands.length - 1;
 	if (previewBeggining) {
-		const idx = filteredCommands.findIndex(cmd => cmd.id === previewBeggining);
+		const idx = filteredCommands.findIndex((cmd) => cmd.id === previewBeggining);
 		if (idx !== -1) start = idx;
 	}
 	if (previewEnd) {
-		const idx = filteredCommands.findIndex(cmd => cmd.id === previewEnd);
+		const idx = filteredCommands.findIndex((cmd) => cmd.id === previewEnd);
 		if (idx !== -1) end = idx;
 	}
 	if (start > end) [start, end] = [end, start];
