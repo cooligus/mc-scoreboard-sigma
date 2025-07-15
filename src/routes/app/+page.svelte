@@ -4,9 +4,9 @@
 	import Textarea from '$lib/components/ui/textarea/textarea.svelte';
 	import Navbar from '$lib/components/Navbar.svelte';
 	import * as Dialog from '$lib/components/ui/dialog';
-	import { writable } from 'svelte/store';
+	import { writable, get } from 'svelte/store';
 	import { dndzone } from 'svelte-dnd-action';
-	import { FileDown, Play, Users, Settings, FileUp } from 'lucide-svelte';
+	import { FileDown, Play, Users, Settings, FileUp, CirclePause } from 'lucide-svelte';
 	import {
 		parseMcfunctionScript,
 		parseCommands,
@@ -21,6 +21,7 @@
 	import { GripVertical, Trash2, Wine, X } from 'lucide-svelte';
 	import * as Select from '$lib/components/ui/select';
 	import * as Card from '$lib/components/ui/card';
+	import Switch from '$lib/components/ui/switch/switch.svelte';
 
 	const users = writable<UserFunction[]>([
 		{ name: 'Wiesiek', scriptPrefix: 'W', format: 'function characters:wiesiek {Line: "%s"}' }
@@ -35,6 +36,7 @@
 	const settingsDialogOpen = writable(false);
 	const usersDialogOpen = writable(false);
 	const generateDialogOpen = writable(false);
+	const confirmDeleteDialogOpen = writable(false);
 
 	const handleImport = () => importDialogOpen.set(true);
 	const handleSettings = () => settingsDialogOpen.set(true);
@@ -49,7 +51,13 @@
 
 	const navbarButtons = [
 		{ label: 'Import', onclick: handleImport, title: 'Import', icon: FileUp, variant: 'ghost' },
-		{ label: 'Settings', onclick: handleSettings, title: 'Settings', icon: Settings, variant: 'ghost' },
+		{
+			label: 'Settings',
+			onclick: handleSettings,
+			title: 'Settings',
+			icon: Settings,
+			variant: 'ghost'
+		},
 		{ label: 'Users', onclick: handleUsers, title: 'Users', icon: Users },
 		{ label: 'Preview', onclick: handlePreview, title: 'Preview', icon: Play, variant: 'blue' },
 		{ label: 'Export', onclick: handleExport, title: 'Export', icon: FileDown, variant: 'success' }
@@ -106,16 +114,15 @@
 
 	const addCommand = (userName: string, isCustom?: boolean) => {
 		const user = getUserFromUsername(userName, $users);
-		commands.update((commands) => [
-			...commands,
-			createCommand(undefined, isCustom, 0, user)
-		]);
+		commands.update((commands) => [...commands, createCommand(undefined, isCustom, 0, user)]);
 	};
 
 	const removeCommand = (commandId: string) => {
 		commands.update((commands) => commands.filter((cmd) => cmd.id !== commandId));
+		editCommandData.set(null);
+		editCommandDialogOpen.set(false);
+		confirmDeleteDialogOpen.set(false);
 	};
-
 
 	const increaseAllSpans = (amount: number = 20) => {
 		commands.update((commands) => commands.map((cmd) => ({ ...cmd, span: cmd.span + amount })));
@@ -135,26 +142,20 @@
 	const previewVisible = writable<boolean>(false);
 	const currentPreviewCommand = writable<string>('');
 	const previewIndex = writable<number>(-1);
+	const previewBeggining = writable<string | null>(null);
+	const previewEnd = writable<string | null>(null);
 
 	const runPreview = () => {
-		runPreviewUtil($commands, $scriptSettings, {
-			setPreviewVisible: (visible) => {
-				previewVisible.set(visible);
+		runPreviewUtil(
+			$commands,
+			$scriptSettings.initialSpan,
+			{
+				setPreviewVisible: (visible) => previewVisible.set(visible),
+				setPreviewIndex: (index) => previewIndex.set(index),
+				setCurrentPreviewCommand: (command) => currentPreviewCommand.set(command)
 			},
-			setPreviewIndex: (index) => {
-				previewIndex.set(index);
-			},
-			setCurrentPreviewCommand: (command) => {
-				currentPreviewCommand.set(command);
-			}
-		});
-	};
-
-	const toggleCommandCustom = (commandId: string) => {
-		commands.update((cmds) =>
-			cmds.map((cmd) =>
-				cmd.id === commandId ? { ...cmd, isCustom: !cmd.isCustom } : cmd
-			)
+			$previewBeggining,
+			$previewEnd
 		);
 	};
 
@@ -162,12 +163,40 @@
 		users.update((us) => us.filter((_, i) => i !== index));
 	};
 
-	$: {
-		$commands.forEach((cmd) => {
-			if (cmd.userName !== (cmd.user?.name || '')) {
-				cmd.user = getUserFromUsername(cmd.userName || '', $users) || undefined;
-			}
-		});
+	const editCommandDialogOpen = writable(false);
+	const editCommandData = writable<Command | null>(null);
+	const spanDisplayMode = writable<'seconds' | 'ticks'>('seconds');
+
+	function spanDisplayModeValue(command: Command, mode: 'seconds' | 'ticks' = 'seconds') {
+		return mode === 'seconds' ? command.span / 20 : command.span;
+	}
+
+	const editedSpanValue = writable<number>(0);
+
+	const openEditCommandDialog = (command: Command) => {
+		editedSpanValue.set(spanDisplayModeValue(command, get(spanDisplayMode)));
+		editCommandData.set({ ...command });
+		editUserName.set(command.user?.name || '');
+		editCommandDialogOpen.set(true);
+	};
+
+	const updateEditCommandField = (field: keyof Command, value: any) => {
+		const edited = get(editCommandData);
+		if (!edited) return;
+		const updated = { ...edited, [field]: value };
+		editCommandData.set(updated);
+		commands.update((cmds) =>
+			cmds.map((cmd) => (cmd.id === updated.id ? { ...cmd, ...updated } : cmd))
+		);
+	};
+
+	const editUserName = writable('');
+
+	$: if ($editCommandData && $editUserName !== ($editCommandData.user?.name || '')) {
+		const user = $users.find((u) => u.name === $editUserName);
+		if ($editCommandData && user !== $editCommandData.user) {
+			updateEditCommandField('user', user);
+		}
 	}
 </script>
 
@@ -189,67 +218,91 @@
 			}}
 		>
 			{#each $commands as command, index (command.id)}
-				<div class="mb-4 flex items-center rounded-md border p-4">
+				<div class="flex items-center rounded-md p-4">
 					<span class="handle mr-4 cursor-grab">
 						<GripVertical class="h-4 w-4" />
 					</span>
 					<div class="flex-1">
-						{#if !command.isCustom}
-						<div class="mb-2 flex items-center justify-between gap-3">
-							<Select.Root type="single" bind:value={command.userName}>
-								<Select.Trigger>{command.userName || 'No user'}</Select.Trigger>
-								<Select.Content>
-									<Select.Item value="">No user</Select.Item>
-									{#each $users as user}
-										<Select.Item value={user.name}>{user.name}</Select.Item>
-									{/each}
-								</Select.Content>
-							</Select.Root>
-								<label for="commandSpanMultiplier-{index}" class="block text-xs">seconds:</label>
-								<Input
-									id="commandSpanMultiplier-{index}"
-									type="number"
-									class="w-20"
-									value={command.span / 20}
-									on:input={(e) => {
-										const target = e.target as HTMLInputElement | null;
-										if (target) command.span = Number(target.value) * 20;
-									}}
-								/>
-								<label for="commandSpan-{index}" class="block text-xs">ticks:</label>
-								<Input
-									id="commandSpan-{index}"
-									type="number"
-									class="w-20"
-									bind:value={command.span}
-								/>
-						</div>
-						{/if}
 						<div class="flex items-center gap-2">
-						<Textarea
-							id="commandContent-{index}"
-							bind:value={command.content}
-							class="mb-2 min-h-[3em]"
-						/>
-						<div class="flex flex-col space-between gap-2">
-							<Button
-								variant="ghost"
-								onclick={() => removeCommand(command.id)}
-								title="Remove command"
-								aria-label="Remove command"
-							>
-								<Trash2 class="h-4 w-4" />
-							</Button>
-							<Button
-								variant="ghost"
-								onclick={() => toggleCommandCustom(command.id)}
-								title="Toggle custom mode"
-								aria-label="Toggle custom mode"
-							>
-								<Wine class="h-4 w-4" />
-							</Button>
-						</div>
-							
+							{#if !command.isCustom}
+								<div class="flex items-center justify-between gap-3">
+									<p class="min-w-[5em] text-sm">{command.user?.name || 'No user'}</p>
+									{#if $spanDisplayMode === 'seconds'}
+										<Input
+											id="commandSpanMultiplier-{index}"
+											type="number"
+											class="w-20"
+											value={command.span / 20}
+											on:input={(e) => {
+												const target = e.target as HTMLInputElement | null;
+												if (target) command.span = Number(target.value) * 20;
+											}}
+										/>
+									{:else if $spanDisplayMode === 'ticks'}
+										<Input
+											id="commandSpan-{index}"
+											type="number"
+											class="w-20"
+											bind:value={command.span}
+										/>
+									{/if}
+								</div>
+							{/if}
+							<Textarea
+								id="commandContent-{index}"
+								bind:value={command.content}
+								class="min-h-[3em]"
+							/>
+							<div class="group flex min-w-[5em]">
+								<Button
+									variant="ghost"
+									onclick={() => openEditCommandDialog(command)}
+									title="Edit command"
+									aria-label="Edit command"
+								>
+									<Settings />
+								</Button>
+								{#if !command.isCustom}
+									{#if command.id === $previewBeggining}
+										<Button
+											variant="success"
+											title="Unset the beggining of the preview"
+											aria-label="Unset the beggining of the preview"
+											onclick={() => previewBeggining.set(null)}
+										>
+											<Play />
+										</Button>
+									{:else}
+										<Button
+											variant="hidden"
+											title="Set the beggining of the preview"
+											aria-label="Set the beggining of the preview"
+											onclick={() => previewBeggining.set(command.id)}
+										>
+											<Play />
+										</Button>
+									{/if}
+									{#if command.id === $previewEnd}
+										<Button
+											variant="destructive"
+											title="Unset the end of the preview"
+											aria-label="Unset the end of the preview"
+											onclick={() => previewEnd.set(null)}
+										>
+											<CirclePause />
+										</Button>
+									{:else}
+										<Button
+											variant="hidden"
+											title="Set the end of the preview"
+											aria-label="Set the end of the preview"
+											onclick={() => previewEnd.set(command.id)}
+										>
+											<CirclePause />
+										</Button>
+									{/if}
+								{/if}
+							</div>
 						</div>
 					</div>
 				</div>
@@ -325,6 +378,20 @@
 					<label for="minimalSpan" class="block text-sm font-medium">Minimal Span</label>
 					<Input id="minimalSpan" type="number" bind:value={$scriptSettings.minimalSpan} />
 				</div>
+				<div>
+					<label class="block text-sm font-medium" for="custom-command-dialog-switch"
+						>Display Span as</label
+					>
+					<Select.Root type="single" bind:value={$spanDisplayMode}>
+						<Select.Trigger id="custom-command-dialog-switch"
+							>{$spanDisplayMode === 'seconds' ? 'Seconds' : 'Ticks'}</Select.Trigger
+						>
+						<Select.Content>
+							<Select.Item value="seconds">Seconds</Select.Item>
+							<Select.Item value="ticks">Ticks</Select.Item>
+						</Select.Content>
+					</Select.Root>
+				</div>
 			</div>
 		</Dialog.Content>
 	</Dialog.Root>
@@ -336,7 +403,7 @@
 			</Dialog.Header>
 			<div class="space-y-4">
 				{#each $users as user, index}
-					<div class="flex flex-col gap-4 rounded-md border p-4 md:flex-row items-center">
+					<div class="flex flex-col items-center gap-4 rounded-md border p-4 md:flex-row">
 						<div class="flex-1">
 							<label for="userName-{index}" class="block text-sm font-medium">Name</label>
 							<Input id="userName-{index}" bind:value={user.name} placeholder="Function Name" />
@@ -390,11 +457,72 @@
 		</Dialog.Content>
 	</Dialog.Root>
 
+	<Dialog.Root bind:open={$editCommandDialogOpen}>
+		<Dialog.Content class="max-w-lg">
+			<Dialog.Header>
+				<Dialog.Title>Edit Command</Dialog.Title>
+			</Dialog.Header>
+			{#if $editCommandData}
+				<div class="space-y-4">
+					<div>
+						<label class="block text-sm font-medium">User</label>
+						<Select.Root type="single" bind:value={$editUserName}>
+							<Select.Trigger>{$editCommandData?.user?.name || 'No user'}</Select.Trigger>
+							<Select.Content>
+								<Select.Item value="">No user</Select.Item>
+								{#each $users as user}
+									<Select.Item value={user.name}>{user.name}</Select.Item>
+								{/each}
+							</Select.Content>
+						</Select.Root>
+					</div>
+					<div class="flex items-center gap-2">
+						<label class="block text-sm font-medium">Custom Command</label>
+						<Switch
+							bind:checked={
+								() => $editCommandData.isCustom, (v) => updateEditCommandField('isCustom', v)
+							}
+						/>
+					</div>
+					<div class="mt-4 flex gap-2">
+						<Button
+							variant="destructive"
+							onclick={() => confirmDeleteDialogOpen.set(true)}
+							title="Remove command"
+							aria-label="Remove command"
+						>
+							<Trash2 class="h-4 w-4" />
+						</Button>
+					</div>
+				</div>
+			{/if}
+		</Dialog.Content>
+	</Dialog.Root>
+
+	<Dialog.Root bind:open={$confirmDeleteDialogOpen}>
+		<Dialog.Content class="max-w-lg">
+			<Dialog.Header>
+				<Dialog.Title>Confirm Delete</Dialog.Title>
+			</Dialog.Header>
+			<Dialog.Footer>
+				<Button onclick={() => confirmDeleteDialogOpen.set(false)}>No</Button>
+				<Button variant="destructive" onclick={() => removeCommand($editCommandData?.id!)}
+					>Yes</Button
+				>
+			</Dialog.Footer>
+		</Dialog.Content>
+	</Dialog.Root>
+
 	{#if $previewVisible}
-		<Card.Root class="fixed bottom-4 right-4 z-50 max-w-md shadow-lg">
+		<Card.Root class="fixed bottom-4 right-4 z-50 w-[40em] shadow-lg">
 			<Card.Header class="flex flex-row items-center justify-between">
 				<Card.Title class="text-lg font-semibold">Preview</Card.Title>
-				<Button onclick={() => { previewVisible.set(false); cancelPreview(); }}>
+				<Button
+					onclick={() => {
+						previewVisible.set(false);
+						cancelPreview();
+					}}
+				>
 					<X class="h-4 w-4" />
 				</Button>
 			</Card.Header>

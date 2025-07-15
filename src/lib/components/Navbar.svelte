@@ -16,7 +16,12 @@
 			<div class="flex items-center space-x-2">
 				{#if buttons && buttons.length}
 					{#each buttons as button}
-						<Button variant={button.variant} onclick={button.onclick} title={button.title} href={button.href}>
+						<Button
+							variant={button.variant}
+							onclick={button.onclick}
+							title={button.title}
+							href={button.href}
+						>
 							{#if button.icon}
 								<button.icon />
 							{/if}
